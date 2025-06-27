@@ -31,7 +31,7 @@ export default function Terms() {
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">1. Objetivo da Plataforma</h2>
             <p className="text-gray-700 mb-4">O Dr. Processo oferece aos usuários a possibilidade de:</p>
             <ul className="list-disc pl-6 mb-6 text-gray-700">
-              <li className="mb-2">Consultar gratuitamente a existência e o status de processos judiciais associados ao seu CPF ou CNPJ;</li>
+              <li className="mb-2">Consultar a existência e o status de processos judiciais associados ao seu CPF ou CNPJ;</li>
               <li className="mb-2">Receber essas informações de forma automatizada via WhatsApp e e-mail;</li>
               <li className="mb-2">Armazenar seus dados de forma segura para facilitar consultas futuras ou envio de atualizações processuais.</li>
             </ul>
