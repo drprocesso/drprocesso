@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy load components for better performance
 const Home = React.lazy(() => import('./pages/Home'));
@@ -27,23 +28,25 @@ const LoadingFallback = () => (
 
 function App() {
   return (
-    <Router>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/consultas" element={<Consultas />} />
-          <Route path="/termos" element={<Terms />} />
-          <Route path="/privacidade" element={<Privacy />} />
-          <Route path="/loading" element={<Loading />} />
-          <Route path="/resultados" element={<Resultados />} />
-          <Route path="/confirmado" element={<Confirmado />} />
-          <Route path="/alerta" element={<Alerta />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/cavar_mais_fundo" element={<CavarMaisFundo />} />
-          <Route path="/acompanhamento_detalhado" element={<AcompanhamentoDetalhado />} />
-        </Routes>
-      </Suspense>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/consultas" element={<Consultas />} />
+            <Route path="/termos" element={<Terms />} />
+            <Route path="/privacidade" element={<Privacy />} />
+            <Route path="/loading" element={<Loading />} />
+            <Route path="/resultados" element={<Resultados />} />
+            <Route path="/confirmado" element={<Confirmado />} />
+            <Route path="/alerta" element={<Alerta />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/cavar_mais_fundo" element={<CavarMaisFundo />} />
+            <Route path="/acompanhamento_detalhado" element={<AcompanhamentoDetalhado />} />
+          </Routes>
+        </Suspense>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
