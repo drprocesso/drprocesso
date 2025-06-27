@@ -1,135 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2, LogIn } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { HashLink } from 'react-router-hash-link';
 import { supabase } from '../lib/supabase';
-
-// Memoized components for better performance
-const PainPointCard = React.memo(({ point, index }: { point: any; index: number }) => {
-  const IconComponent = point.icon;
-  return (
-    <motion.div
-      initial={{ x: -20, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.6, delay: 1.0 + (index * 0.1) }}
-      className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
-    >
-      <div className="flex items-start gap-4">
-        <div className="bg-red-100 p-3 rounded-lg flex-shrink-0">
-          <IconComponent className="w-6 h-6 text-red-600" />
-        </div>
-        <div className="flex-1">
-          <p className="text-lg font-semibold text-gray-900 mb-2">
-            "{point.text}"
-          </p>
-          <p className="text-sm text-gray-600 italic">
-            {point.description}
-          </p>
-        </div>
-      </div>
-    </motion.div>
-  );
-});
-
-const BenefitCard = React.memo(({ benefit, index }: { benefit: any; index: number }) => {
-  const IconComponent = benefit.icon;
-  return (
-    <motion.div
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, delay: 2.5 + (index * 0.1) }}
-      className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
-    >
-      <div className="p-8">
-        <div className="flex items-start gap-4 mb-6">
-          <div className={`bg-gradient-to-r ${benefit.color} p-4 rounded-xl shadow-lg`}>
-            <IconComponent className="w-8 h-8 text-white" />
-          </div>
-          <div className="flex-1">
-            <h3 className="text-xl font-bold text-gray-900 mb-3">
-              {benefit.title}
-            </h3>
-            <p className="text-gray-700 leading-relaxed">
-              {benefit.description}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 text-green-600">
-          <CheckCircle className="w-5 h-5" />
-          <span className="font-semibold">Solução Garantida</span>
-        </div>
-      </div>
-    </motion.div>
-  );
-});
-
-const TestimonialCard = React.memo(({ testimonial, index }: { testimonial: any; index: number }) => (
-  <motion.div
-    initial={{ y: 20, opacity: 0 }}
-    animate={{ y: 0, opacity: 1 }}
-    transition={{ duration: 0.6, delay: 4.4 + (index * 0.1) }}
-    className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
-  >
-    {/* Quote Icon */}
-    <div className="flex justify-center mb-6">
-      <div className="bg-teal-100 p-3 rounded-full">
-        <Quote className="w-8 h-8 text-teal-600" />
-      </div>
-    </div>
-
-    {/* Testimonial Text */}
-    <blockquote className="text-gray-700 text-lg leading-relaxed mb-6 text-center italic">
-      "{testimonial.text}"
-    </blockquote>
-
-    {/* Rating */}
-    <div className="flex justify-center mb-6">
-      <div className="flex gap-1">
-        {[...Array(testimonial.rating)].map((_, i) => (
-          <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-        ))}
-      </div>
-    </div>
-
-    {/* User Info */}
-    <div className="flex items-center justify-center gap-4">
-      <img
-        src={testimonial.avatar}
-        alt={testimonial.name}
-        className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
-        width="64"
-        height="64"
-        loading="lazy"
-      />
-      <div className="text-center">
-        <p className="font-semibold text-gray-900 text-lg">
-          {testimonial.name}
-        </p>
-        <p className="text-sm text-gray-600">
-          Usuário verificado
-        </p>
-      </div>
-    </div>
-  </motion.div>
-));
-
-// Debounce hook for form inputs
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-};
+import LazyImage from '../components/LazyImage';
+import OptimizedVideo from '../components/OptimizedVideo';
+import { usePassiveEventListener } from '../hooks/usePassiveEventListener';
+import { debounce } from '../utils/performance';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -148,46 +26,7 @@ export default function Home() {
   const [offerErrorMessage, setOfferErrorMessage] = useState<string | null>(null);
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
 
-  // Debounced form values for better performance
-  const debouncedCpf = useDebounce(offerFormData.cpf, 300);
-  const debouncedEmail = useDebounce(offerFormData.email, 300);
-  const debouncedWhatsapp = useDebounce(offerFormData.whatsapp, 300);
-
-  // Load video script with optimizations
-  useEffect(() => {
-    const loadVideoScript = () => {
-      // Check if script is already loaded
-      if (document.getElementById('scr_6848bd5ca082b39615cb5022')) {
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.id = 'scr_6848bd5ca082b39615cb5022';
-      script.src = 'https://scripts.converteai.net/e0ad35f5-f49d-4adb-8c02-1993c76c86e0/players/6848bd5ca082b39615cb5022/player.js';
-      script.async = true;
-      script.defer = true;
-      
-      // Add error handling
-      script.onerror = () => {
-        console.error('Failed to load ConvertAI video script');
-      };
-      
-      script.onload = () => {
-        console.log('ConvertAI video script loaded successfully');
-      };
-
-      document.head.appendChild(script);
-    };
-
-    // Load script after component mounts with a slight delay to not block initial render
-    const timer = setTimeout(loadVideoScript, 100);
-    
-    return () => {
-      clearTimeout(timer);
-    };
-  }, []);
-
-  // Memoized data arrays to prevent unnecessary re-renders
+  // Memoize static data to prevent unnecessary re-renders
   const painPoints = useMemo(() => [
     {
       icon: UserX,
@@ -327,24 +166,34 @@ export default function Home() {
     }
   ], []);
 
+  // Optimized scroll handler with passive event listener
+  const handleScroll = useMemo(
+    () => debounce(() => {
+      // Scroll handling logic here if needed
+    }, 16),
+    []
+  );
+
+  usePassiveEventListener('scroll', handleScroll, { passive: true });
+
   // Validation functions for offer form
-  const validateOfferWhatsapp = useCallback((whatsapp: string) => {
+  const validateOfferWhatsapp = (whatsapp: string) => {
     const numbers = whatsapp.replace(/\D/g, '');
     return numbers.length === 11 && !numbers.startsWith('0');
-  }, []);
+  };
 
-  const validateOfferEmail = useCallback((email: string) => {
+  const validateOfferEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
-  }, []);
+  };
 
-  const validateOfferCPF = useCallback((cpf: string) => {
+  const validateOfferCPF = (cpf: string) => {
     const numbers = cpf.replace(/\D/g, '');
     return numbers.length === 11;
-  }, []);
+  };
 
   // Handle offer form submission
-  const handleOfferSubmit = useCallback(async (e: React.FormEvent) => {
+  const handleOfferSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setOfferErrorMessage(null);
     
@@ -451,57 +300,38 @@ export default function Home() {
     } finally {
       setIsOfferLoading(false);
     }
-  }, [offerFormData, validateOfferWhatsapp, validateOfferEmail, validateOfferCPF, navigate]);
+  };
 
-  // Handle form field changes for offer form with debouncing
-  const handleOfferWhatsappChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle form field changes for offer form
+  const handleOfferWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
     value = value.slice(0, 11);
     if (value.length > 0) {
       value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     }
-    setOfferFormData(prev => ({ ...prev, whatsapp: value }));
-  }, []);
+    setOfferFormData({ ...offerFormData, whatsapp: value });
+    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateOfferWhatsapp(value) });
+  };
 
-  const handleOfferEmailChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOfferEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setOfferFormData(prev => ({ ...prev, email: value }));
-  }, []);
+    setOfferFormData({ ...offerFormData, email: value });
+    setOfferFormErrors({ ...offerFormErrors, email: !validateOfferEmail(value) });
+  };
 
-  const handleOfferCPFChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleOfferCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
     value = value.slice(0, 11);
     if (value.length > 0) {
       value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
-    setOfferFormData(prev => ({ ...prev, cpf: value }));
-  }, []);
+    setOfferFormData({ ...offerFormData, cpf: value });
+    setOfferFormErrors({ ...offerFormErrors, cpf: !validateOfferCPF(value) });
+  };
 
-  // Update validation errors when debounced values change
-  useEffect(() => {
-    setOfferFormErrors(prev => ({
-      ...prev,
-      whatsapp: debouncedWhatsapp ? !validateOfferWhatsapp(debouncedWhatsapp) : false
-    }));
-  }, [debouncedWhatsapp, validateOfferWhatsapp]);
-
-  useEffect(() => {
-    setOfferFormErrors(prev => ({
-      ...prev,
-      email: debouncedEmail ? !validateOfferEmail(debouncedEmail) : false
-    }));
-  }, [debouncedEmail, validateOfferEmail]);
-
-  useEffect(() => {
-    setOfferFormErrors(prev => ({
-      ...prev,
-      cpf: debouncedCpf ? !validateOfferCPF(debouncedCpf) : false
-    }));
-  }, [debouncedCpf, validateOfferCPF]);
-
-  const toggleFAQ = useCallback((index: number) => {
+  const toggleFAQ = (index: number) => {
     setExpandedFAQ(expandedFAQ === index ? null : index);
-  }, [expandedFAQ]);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col relative">
@@ -522,13 +352,13 @@ export default function Home() {
           transition={{ duration: 0.6 }}
           className="flex justify-center mb-16"
         >
-          <img 
+          <LazyImage 
             src="/Dr-Processo-Logo.webp" 
             alt="Dr. Processo" 
-            className="h-20 object-contain" 
-            width="200"
-            height="80"
-            fetchPriority="high"
+            className="h-20 object-contain"
+            width={200}
+            height={80}
+            priority={true}
           />
         </motion.div>
 
@@ -548,23 +378,18 @@ export default function Home() {
           </p>
         </motion.div>
 
-        {/* Video Section */}
+        {/* Optimized Video Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
           className="mb-16 max-w-4xl mx-auto"
         >
-          <div className="relative bg-gray-900 rounded-2xl overflow-hidden shadow-2xl aspect-video border border-gray-200">
-            {/* YouTube Video Embed */}
-            <iframe
-              src="https://www.youtube.com/embed/0mTP8viA21I?autoplay=1&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&fs=1&disablekb=1&playsinline=1&enablejsapi=1&origin=https://drprocesso.com.br"
+          <div className="aspect-video border border-gray-200 rounded-2xl overflow-hidden shadow-2xl">
+            <OptimizedVideo
+              videoId="0mTP8viA21I"
               title="Dr. Processo Video"
-              className="absolute top-0 left-0 w-full h-full"
-              frameBorder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              loading="lazy"
+              className="w-full h-full"
             />
           </div>
         </motion.div>
@@ -601,9 +426,32 @@ export default function Home() {
 
           {/* Pain Points Grid */}
           <div className="space-y-6 max-w-3xl mx-auto">
-            {painPoints.map((point, index) => (
-              <PainPointCard key={index} point={point} index={index} />
-            ))}
+            {painPoints.map((point, index) => {
+              const IconComponent = point.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 1.0 + (index * 0.1) }}
+                  className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-red-100 p-3 rounded-lg flex-shrink-0">
+                      <IconComponent className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-lg font-semibold text-gray-900 mb-2">
+                        "{point.text}"
+                      </p>
+                      <p className="text-sm text-gray-600 italic">
+                        {point.description}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Connection Text */}
@@ -650,13 +498,12 @@ export default function Home() {
                   {/* Image with Question Mark */}
                   <div className="relative">
                     <div className="w-48 h-48 flex items-center justify-center mb-4 mx-auto">
-                      <img 
+                      <LazyImage 
                         src="/Design-sem-nome-_3_.webp" 
                         alt="Advogado Negligente" 
                         className="w-full h-full object-contain"
-                        width="192"
-                        height="192"
-                        loading="lazy"
+                        width={192}
+                        height={192}
                       />
                     </div>
                   </div>
@@ -721,9 +568,38 @@ export default function Home() {
 
           {/* Benefits Grid */}
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {benefits.map((benefit, index) => (
-              <BenefitCard key={index} benefit={benefit} index={index} />
-            ))}
+            {benefits.map((benefit, index) => {
+              const IconComponent = benefit.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 2.5 + (index * 0.1) }}
+                  className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
+                >
+                  <div className="p-8">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className={`bg-gradient-to-r ${benefit.color} p-4 rounded-xl shadow-lg`}>
+                        <IconComponent className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">
+                          {benefit.title}
+                        </h3>
+                        <p className="text-gray-700 leading-relaxed">
+                          {benefit.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-semibold">Solução Garantida</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
 
           {/* Differential */}
@@ -852,7 +728,53 @@ export default function Home() {
           {/* Testimonials Grid */}
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
             {testimonials.map((testimonial, index) => (
-              <TestimonialCard key={index} testimonial={testimonial} index={index} />
+              <motion.div
+                key={index}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 4.4 + (index * 0.1) }}
+                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
+              >
+                {/* Quote Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="bg-teal-100 p-3 rounded-full">
+                    <Quote className="w-8 h-8 text-teal-600" />
+                  </div>
+                </div>
+
+                {/* Testimonial Text */}
+                <blockquote className="text-gray-700 text-lg leading-relaxed mb-6 text-center italic">
+                  "{testimonial.text}"
+                </blockquote>
+
+                {/* Rating */}
+                <div className="flex justify-center mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="flex items-center justify-center gap-4">
+                  <LazyImage
+                    src={testimonial.avatar}
+                    alt={testimonial.name}
+                    className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
+                    width={64}
+                    height={64}
+                  />
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900 text-lg">
+                      {testimonial.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Usuário verificado
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
             ))}
           </div>
 
@@ -1018,7 +940,7 @@ export default function Home() {
                   required
                   className="mt-1.5 h-5 w-5 text-teal-600 focus:ring-2 focus:ring-teal-500 border-2 border-gray-300 rounded transition-all duration-200 ease-in-out"
                   checked={offerFormData.consent}
-                  onChange={(e) => setOfferFormData(prev => ({...prev, consent: e.target.checked}))}
+                  onChange={(e) => setOfferFormData({...offerFormData, consent: e.target.checked})}
                 />
                 <label htmlFor="offer-consent" className="text-sm text-gray-700 leading-relaxed">
                   Autorizo o uso dos meus dados para consulta processual e comunicação do Dr. Processo.*
@@ -1150,13 +1072,12 @@ export default function Home() {
             {/* Logo and Description */}
             <div className="space-y-6">
               <div className="flex items-center gap-3">
-                <img 
+                <LazyImage 
                   src="/Dr-Processo-Logo.webp" 
                   alt="Dr. Processo" 
-                  className="h-12 object-contain" 
-                  width="120"
-                  height="48"
-                  loading="lazy"
+                  className="h-12 object-contain"
+                  width={120}
+                  height={48}
                 />
                
               </div>
