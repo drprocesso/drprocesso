@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2, LogIn } from 'lucide-react';
+import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { HashLink } from 'react-router-hash-link';
 import { supabase } from '../lib/supabase';
@@ -334,16 +334,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col relative">
-      {/* Login Button */}
-      <Link
-        to="/login"
-        className="absolute top-4 right-4 z-10 bg-teal-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
-      >
-        <LogIn className="w-4 h-4" />
-        FAZER LOGIN
-      </Link>
-
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
       <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
         {/* Logo */}
         <motion.div 
