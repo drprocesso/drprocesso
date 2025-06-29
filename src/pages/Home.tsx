@@ -69,7 +69,7 @@ export default function Alerta() {
     const cards = [];
     for (let i = 0; i < count; i++) {
       cards.push({
-        id: fictitious-${i},
+        id: `fictitious-${i}`,
         nome: 'Processo em seu nome (Confidencial)',
         numero: 'XXXXXXXXXXXXXX.XXXX.X.XX.XXXX',
         resumo: 'Última movimentação: [Detalhes Confidenciais]. Status atual: [Informação Protegida]. Próximas ações: [Dados Sigilosos]. Valor envolvido: [Quantia Reservada]. Prazo: [Data Oculta].'
@@ -109,7 +109,7 @@ export default function Alerta() {
       params.append('customer_email', alertaData.email);
     }
     
-    const stripeCheckoutUrl = ${baseUrl}?${params.toString()};
+    const stripeCheckoutUrl = `${baseUrl}?${params.toString()}`;
     console.log('Opening Stripe checkout with consultaId as client_reference_id:', alertaData?.id);
     window.open(stripeCheckoutUrl, '_blank');
   };
@@ -505,7 +505,7 @@ export default function Alerta() {
 
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className={w-full bg-gradient-to-r ${card.nome_envolvido ? 'from-teal-600 to-teal-700' : 'from-gray-600 to-gray-700'} text-white py-3 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2}
+                  className={`w-full bg-gradient-to-r ${card.nome_envolvido ? 'from-teal-600 to-teal-700' : 'from-gray-600 to-gray-700'} text-white py-3 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2`}
                 >
                   <Eye className="w-5 h-5" />
                   Desbloquear Processo
