@@ -549,7 +549,7 @@ export default function Home() {
             <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
               Não deixe que a demora e a falta de informação acabem com seus direitos! Consulte agora e evite surpresas extraordinárias.
             </p>
-          </div>
+          </motion.div>
 
           {/* Reinforcement/Trust Texts */}
           <motion.div
@@ -566,7 +566,7 @@ export default function Home() {
               <Shield className="w-4 h-4 text-blue-600" />
               Serviço exclusivo para o cidadão, sem juridiquês.
             </p>
-          </div>
+          </motion.div>
         </motion.div>
 
         {/* Pain Points Section */}
