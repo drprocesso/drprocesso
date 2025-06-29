@@ -96,7 +96,7 @@ export default function Alerta() {
 
   // Function to handle Stripe checkout
   const handleStripeCheckout = () => {
-    const baseUrl = 'https://go.unicornify.com.br/pc41lvfs7g';
+    const baseUrl = 'https://go.unicornify.com.br/pc41lvfs7g'; 
     const params = new URLSearchParams();
     
     // CRITICAL: Add consultaId as client_reference_id
