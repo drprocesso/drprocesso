@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2, LogIn } from 'lucide-react';
+import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { HashLink } from 'react-router-hash-link';
 import { supabase } from '../lib/supabase';
@@ -11,6 +11,23 @@ import { debounce } from '../utils/performance';
 
 export default function Home() {
   const navigate = useNavigate();
+  
+  // Early form state (after video)
+  const [earlyFormData, setEarlyFormData] = useState({
+    cpf: '',
+    email: '',
+    whatsapp: '',
+    consent: false
+  });
+  const [earlyFormErrors, setEarlyFormErrors] = useState({
+    cpf: false,
+    email: false,
+    whatsapp: false
+  });
+  const [isEarlyLoading, setIsEarlyLoading] = useState(false);
+  const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
+
+  // Late form state (existing form)
   const [offerFormData, setOfferFormData] = useState({
     cpf: '',
     email: '',
@@ -176,51 +193,48 @@ export default function Home() {
 
   usePassiveEventListener('scroll', handleScroll, { passive: true });
 
-  // Validation functions for offer form
-  const validateOfferWhatsapp = (whatsapp: string) => {
+  // Validation functions
+  const validateWhatsapp = (whatsapp: string) => {
     const numbers = whatsapp.replace(/\D/g, '');
     return numbers.length === 11 && !numbers.startsWith('0');
   };
 
-  const validateOfferEmail = (email: string) => {
+  const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  const validateOfferCPF = (cpf: string) => {
+  const validateCPF = (cpf: string) => {
     const numbers = cpf.replace(/\D/g, '');
     return numbers.length === 11;
   };
 
-  // Handle offer form submission
-  const handleOfferSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOfferErrorMessage(null);
+  // Generic form submission handler
+  const handleFormSubmit = async (formData: any, setLoading: any, setErrorMessage: any, resetForm: any) => {
+    setErrorMessage(null);
     
     // Validate all fields
     const errors = {
-      whatsapp: !validateOfferWhatsapp(offerFormData.whatsapp),
-      email: !validateOfferEmail(offerFormData.email),
-      cpf: !validateOfferCPF(offerFormData.cpf)
+      whatsapp: !validateWhatsapp(formData.whatsapp),
+      email: !validateEmail(formData.email),
+      cpf: !validateCPF(formData.cpf)
     };
-
-    setOfferFormErrors(errors);
 
     // If there are any errors, don't submit
     if (Object.values(errors).some(error => error)) {
       return;
     }
 
-    setIsOfferLoading(true);
+    setLoading(true);
 
     try {
       // Clean up phone and CPF
-      const cleanWhatsapp = offerFormData.whatsapp.replace(/\D/g, '');
-      const cleanCPF = offerFormData.cpf.replace(/\D/g, '');
+      const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '');
+      const cleanCPF = formData.cpf.replace(/\D/g, '');
 
       console.log('Starting form submission with data:', {
         whatsapp: cleanWhatsapp,
-        email: offerFormData.email,
+        email: formData.email,
         cpf: cleanCPF
       });
 
@@ -230,7 +244,7 @@ export default function Home() {
         .insert([{
           whatsapp: cleanWhatsapp,
           cpf: cleanCPF,
-          email: offerFormData.email,
+          email: formData.email,
           nome: 'Cliente', // Default placeholder
           status: 'pending'
         }])
@@ -251,7 +265,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           whatsapp: cleanWhatsapp,
-          email: offerFormData.email,
+          email: formData.email,
           document: cleanCPF,
           consultaId: consultaId
         })
@@ -281,28 +295,87 @@ export default function Home() {
       navigate(`/loading?consultaId=${consultaId}`);
 
       // Reset form
-      setOfferFormData({
-        cpf: '',
-        email: '',
-        whatsapp: '',
-        consent: false
-      });
-      
-      // Reset errors
-      setOfferFormErrors({
-        cpf: false,
-        email: false,
-        whatsapp: false
-      });
+      resetForm();
     } catch (error) {
       console.error('Error:', error);
-      setOfferErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
+      setErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
     } finally {
-      setIsOfferLoading(false);
+      setLoading(false);
     }
   };
 
-  // Handle form field changes for offer form
+  // Early form handlers
+  const handleEarlySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleFormSubmit(
+      earlyFormData,
+      setIsEarlyLoading,
+      setEarlyErrorMessage,
+      () => {
+        setEarlyFormData({
+          cpf: '',
+          email: '',
+          whatsapp: '',
+          consent: false
+        });
+        setEarlyFormErrors({
+          cpf: false,
+          email: false,
+          whatsapp: false
+        });
+      }
+    );
+  };
+
+  const handleEarlyWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    setEarlyFormData({ ...earlyFormData, whatsapp: value });
+    setEarlyFormErrors({ ...earlyFormErrors, whatsapp: !validateWhatsapp(value) });
+  };
+
+  const handleEarlyEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEarlyFormData({ ...earlyFormData, email: value });
+    setEarlyFormErrors({ ...earlyFormErrors, email: !validateEmail(value) });
+  };
+
+  const handleEarlyCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    setEarlyFormData({ ...earlyFormData, cpf: value });
+    setEarlyFormErrors({ ...earlyFormErrors, cpf: !validateCPF(value) });
+  };
+
+  // Late form handlers (existing)
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleFormSubmit(
+      offerFormData,
+      setIsOfferLoading,
+      setOfferErrorMessage,
+      () => {
+        setOfferFormData({
+          cpf: '',
+          email: '',
+          whatsapp: '',
+          consent: false
+        });
+        setOfferFormErrors({
+          cpf: false,
+          email: false,
+          whatsapp: false
+        });
+      }
+    );
+  };
+
   const handleOfferWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
     value = value.slice(0, 11);
@@ -310,13 +383,13 @@ export default function Home() {
       value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     }
     setOfferFormData({ ...offerFormData, whatsapp: value });
-    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateOfferWhatsapp(value) });
+    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateWhatsapp(value) });
   };
 
   const handleOfferEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setOfferFormData({ ...offerFormData, email: value });
-    setOfferFormErrors({ ...offerFormErrors, email: !validateOfferEmail(value) });
+    setOfferFormErrors({ ...offerFormErrors, email: !validateEmail(value) });
   };
 
   const handleOfferCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,7 +399,7 @@ export default function Home() {
       value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
     setOfferFormData({ ...offerFormData, cpf: value });
-    setOfferFormErrors({ ...offerFormErrors, cpf: !validateOfferCPF(value) });
+    setOfferFormErrors({ ...offerFormErrors, cpf: !validateCPF(value) });
   };
 
   const toggleFAQ = (index: number) => {
@@ -334,16 +407,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col relative">
-      {/* Login Button */}
-      <Link
-        to="/login"
-        className="absolute top-4 right-4 z-10 bg-teal-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
-      >
-        <LogIn className="w-4 h-4" />
-        FAZER LOGIN
-      </Link>
-
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
       <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
         {/* Logo */}
         <motion.div 
@@ -394,7 +458,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* New Section 7: Desvende o Andamento do Seu Processo Agora! */}
+        {/* Early Form Section - Right after video */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -403,11 +467,610 @@ export default function Home() {
         >
           {/* Section Title */}
           <div className="text-center mb-16">
-                       
             {/* Main Headline */}
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
               Seu advogado sumiu? Nós te respondemos na HORA!
+            </h2>
+            
+            {/* Subheadline */}
+            <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
+              Milhões de brasileiros se sentem no escuro. Você está a um passo de ter todas as informações na palma da sua mão.
+            </p>
+          </div>
+
+          {/* Form Container */}
+          <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 max-w-lg mx-auto">
+            <form onSubmit={handleEarlySubmit} className="space-y-6">
+              {earlyErrorMessage && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {earlyErrorMessage}
+                </div>
+              )}
+
+              {/* WhatsApp Field */}
+              <div>
+                <label htmlFor="early-whatsapp" className="block text-sm font-semibold text-gray-700 mb-2">
+                  WhatsApp com DDD*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    id="early-whatsapp"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.whatsapp ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.whatsapp}
+                    onChange={handleEarlyWhatsappChange}
+                    placeholder="(99) 99999-9999"
+                  />
+                </div>
+                {earlyFormErrors.whatsapp && (
+                  <p className="mt-1 text-sm text-red-500">Digite um número de WhatsApp válido com DDD (11 dígitos)</p>
+                )}
+              </div>
+
+              {/* Email Field */}
+              <div>
+                <label htmlFor="early-email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  E-mail*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    id="early-email"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.email ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.email}
+                    onChange={handleEarlyEmailChange}
+                    placeholder="seumail@exemplo.com"
+                  />
+                </div>
+                {earlyFormErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">Digite um e-mail válido</p>
+                )}
+              </div>
+
+              {/* CPF Field */}
+              <div>
+                <label htmlFor="early-cpf" className="block text-sm font-semibold text-gray-700 mb-2">
+                  CPF*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="early-cpf"
+                    required
+                    maxLength={14}
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.cpf ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.cpf}
+                    onChange={handleEarlyCPFChange}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                {earlyFormErrors.cpf && (
+                  <p className="mt-1 text-sm text-red-500">Digite um CPF válido (11 dígitos)</p>
+                )}
+              </div>
+
+              {/* Consent Checkbox */}
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="early-consent"
+                  required
+                  className="mt-1.5 h-5 w-5 text-teal-600 focus:ring-2 focus:ring-teal-500 border-2 border-gray-300 rounded transition-all duration-200 ease-in-out"
+                  checked={earlyFormData.consent}
+                  onChange={(e) => setEarlyFormData({...earlyFormData, consent: e.target.checked})}
+                />
+                <label htmlFor="early-consent" className="text-sm text-gray-700 leading-relaxed">
+                  Autorizo o uso dos meus dados para consulta processual e comunicação do Dr. Processo.*
+                </label>
+              </div>
+
+              {/* Submit Button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isEarlyLoading}
+                className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-xl font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                {isEarlyLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  'Consultar Meu Processo!'
+                )}
+              </motion.button>
+            </form>
+          </div>
+
+          {/* Scarcity/Urgency Text */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="text-center mt-8"
+          >
+            <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
+              Não deixe que a demora e a falta de informação acabem com seus direitos! Consulte agora e evite surpresas extraordinárias.
+            </p>
+          </motion.div>
+
+          {/* Reinforcement/Trust Texts */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.0 }}
+            className="text-center mt-4 text-gray-600 text-sm space-y-1"
+          >
+            <p className="flex items-center justify-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              Consulta em tempo real. Seus dados seguros e protegidos.
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <Shield className="w-4 h-4 text-blue-600" />
+              Serviço exclusivo para o cidadão, sem juridiquês.
+            </p>
+          </motion.div>
+        </motion.div>
+
+        {/* CTA Button */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="flex justify-center mb-20"
+        >
+          <HashLink
+            to="/#como-funciona"
+            smooth
+            className="max-w-lg bg-teal-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-teal-700 transition-all duration-300 ease-in-out shadow-lg hover:shadow-xl text-center"
+          >
+            Como acompanho meu processo?
+          </HashLink>
+        </motion.div>
+
+        {/* Pain Points Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.4 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+              Você se identifica com alguma dessas situações?
+            </h2>
+          </div>
+
+          {/* Pain Points Grid */}
+          <div className="space-y-6 max-w-3xl mx-auto">
+            {painPoints.map((point, index) => {
+              const IconComponent = point.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 1.6 + (index * 0.1) }}
+                  className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="bg-red-100 p-3 rounded-lg flex-shrink-0">
+                      <IconComponent className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-lg font-semibold text-gray-900 mb-2">
+                        "{point.text}"
+                      </p>
+                      <p className="text-sm text-gray-600 italic">
+                        {point.description}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Connection Text */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 2.1 }}
+            className="text-center mt-12"
+          >
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-8 max-w-2xl mx-auto">
+              <p className="text-xl text-teal-800 font-semibold leading-relaxed">
+                Essas são as queixas reais de milhares de brasileiros.<br />
+                <span className="text-teal-600">Você não está sozinho nessa!</span>
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Common Enemy Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 2.3 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O Verdadeiro Inimigo da sua Paz e do seu Processo:
+            </h2>
+          </div>
+
+          {/* Enemy Content */}
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto">
+            <div className="flex flex-col lg:flex-row">
+              {/* Visual Element */}
+              <div className="lg:w-1/3 bg-white flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.8, delay: 2.5 }}
+                  className="text-center"
+                >
+                  {/* Image with Question Mark */}
+                  <div className="relative">
+                    <div className="w-48 h-48 flex items-center justify-center mb-4 mx-auto">
+                      <LazyImage 
+                        src="/Design-sem-nome-_3_.webp" 
+                        alt="Advogado Negligente" 
+                        className="w-full h-full object-contain"
+                        width={192}
+                        height={192}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-gray-900 font-semibold text-lg">O Advogado Negligente</p>
+                </motion.div>
+              </div>
+
+              {/* Text Content */}
+              <div className="lg:w-2/3 p-8 lg:p-12">
+                <motion.div
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 2.7 }}
+                >
+                  <p className="text-lg text-gray-700 leading-relaxed mb-6">
+                    <span className="font-semibold text-gray-900">Não é a justiça, nem a complexidade da lei.</span> O que rouba sua tranquilidade é o advogado que:
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Some após o contrato</span> e deixa você no escuro</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Não responde mensagens</span> nem retorna ligações</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Não repassa informações</span> sobre o andamento do processo</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700">E em alguns casos, <span className="font-semibold text-red-600">recebe valores e não entrega ao cliente</span></p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-6 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-red-800 font-semibold text-center">
+                      É hora de retomar o controle da SUA vida e do SEU processo!
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Benefits Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 2.9 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O Dr. Processo é a sua Solução Definitiva para:
+            </h2>
+          </div>
+
+          {/* Benefits Grid */}
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {benefits.map((benefit, index) => {
+              const IconComponent = benefit.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 3.1 + (index * 0.1) }}
+                  className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
+                >
+                  <div className="p-8">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className={`bg-gradient-to-r ${benefit.color} p-4 rounded-xl shadow-lg`}>
+                        <IconComponent className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">
+                          {benefit.title}
+                        </h3>
+                        <p className="text-gray-700 leading-relaxed">
+                          {benefit.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-semibold">Solução Garantida</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Differential */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 3.6 }}
+            className="text-center mt-16"
+          >
+            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="bg-white bg-opacity-20 p-3 rounded-full">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white">Nosso Diferencial</h3>
+              </div>
+              <p className="text-xl text-white leading-relaxed">
+                <span className="font-semibold">Nosso foco é exclusivamente você, cidadão comum.</span><br />
+                Não somos para advogados, somos para sua tranquilidade!
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* How It Works Section */}
+        <motion.div
+          id="como-funciona"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 3.8 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              Como o Dr. Processo Funciona em Apenas 3 Passos Simples:
+            </h2>
+          </div>
+
+          {/* Steps */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {steps.map((step, index) => {
+              const IconComponent = step.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 4.0 + (index * 0.2) }}
+                >
+                  <div className="flex flex-col items-center gap-8">
+                    {/* Step Number and Icon */}
+                    <div className="flex-shrink-0">
+                      <div className={`bg-gradient-to-r ${step.color} rounded-2xl p-8 shadow-2xl`}>
+                        <div className="flex flex-col items-center text-white">
+                          <div className="bg-white bg-opacity-20 rounded-full p-4 mb-4">
+                            <IconComponent className="w-12 h-12" />
+                          </div>
+                          <div className="bg-white text-gray-900 rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
+                            {step.number}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step Content */}
+                    <div className="text-center">
+                      <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100">
+                        <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                          Passo {step.number}: {step.title}
+                        </h3>
+                        <p className="text-lg text-gray-700 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Infographic Summary */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 4.6 }}
+            className="text-center mt-16"
+          >
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 max-w-4xl mx-auto border border-gray-200">
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                É simples assim! Em poucos minutos você tem o controle total.
+              </h3>
+              <div className="flex flex-wrap justify-center items-center gap-6 text-gray-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="font-semibold">Rápido</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="font-semibold">Fácil</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span className="font-semibold">Automático</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Social Proof Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 4.8 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O que nossos usuários (e a realidade) dizem sobre a dor de depender de advogados:
+            </h2>
+          </div>
+
+          {/* Testimonials Grid */}
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
+            {testimonials.map((testimonial, index) => (
+              <motion.div
+                key={index}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 5.0 + (index * 0.1) }}
+                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
+              >
+                {/* Quote Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="bg-teal-100 p-3 rounded-full">
+                    <Quote className="w-8 h-8 text-teal-600" />
+                  </div>
+                </div>
+
+                {/* Testimonial Text */}
+                <blockquote className="text-gray-700 text-lg leading-relaxed mb-6 text-center italic">
+                  "{testimonial.text}"
+                </blockquote>
+
+                {/* Rating */}
+                <div className="flex justify-center mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="flex items-center justify-center gap-4">
+                  <LazyImage
+                    src={testimonial.avatar}
+                    alt={testimonial.name}
+                    className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
+                    width={64}
+                    height={64}
+                  />
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900 text-lg">
+                      {testimonial.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Usuário verificado
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Statistics */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 5.4 }}
+            className="text-center"
+          >
+            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-12 max-w-4xl mx-auto shadow-2xl">
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="bg-white bg-opacity-20 p-4 rounded-full">
+                  <Users className="w-12 h-12 text-white" />
+                </div>
+                <div className="text-left">
+                  <div className="text-4xl font-bold text-white mb-2">
+                    11.265.247
+                  </div>
+                  <p className="text-xl text-white opacity-90">
+                    Brasileiros já recuperaram o controle
+                  </p>
+                </div>
+              </div>
               
+              <p className="text-2xl text-white font-semibold leading-relaxed">
+                Mais de <span className="text-yellow-300">11 milhões de brasileiros</span> já recuperaram o controle de seus processos com o Dr. Processo!
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">98.7%</div>
+                  <p className="text-white opacity-90">Satisfação dos usuários</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">132 Milhões</div>
+                  <p className="text-white opacity-90">De processos pesquisados</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">100%</div>
+                  <p className="text-white opacity-90">Dados seguros e protegidos</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Late Form Section - Original position */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 5.6 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            {/* Main Headline */}
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
+              Seu advogado sumiu? Nós te respondemos na HORA!
             </h2>
             
             {/* Subheadline */}
@@ -543,7 +1206,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.8 }}
+            transition={{ duration: 0.6, delay: 5.8 }}
             className="text-center mt-8"
           >
             <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
@@ -555,7 +1218,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1.0 }}
+            transition={{ duration: 0.6, delay: 6.0 }}
             className="text-center mt-4 text-gray-600 text-sm space-y-1"
           >
             <p className="flex items-center justify-center gap-2">
@@ -569,423 +1232,11 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* Pain Points Section */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.2 }}
-          className="mb-20"
-        >
-          {/* Section Title */}
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
-              Você se identifica com alguma dessas situações?
-            </h2>
-          </div>
-
-          {/* Pain Points Grid */}
-          <div className="space-y-6 max-w-3xl mx-auto">
-            {painPoints.map((point, index) => {
-              const IconComponent = point.icon;
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.4 + (index * 0.1) }}
-                  className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="bg-red-100 p-3 rounded-lg flex-shrink-0">
-                      <IconComponent className="w-6 h-6 text-red-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-lg font-semibold text-gray-900 mb-2">
-                        "{point.text}"
-                      </p>
-                      <p className="text-sm text-gray-600 italic">
-                        {point.description}
-                      </p>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Connection Text */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1.9 }}
-            className="text-center mt-12"
-          >
-            <div className="bg-teal-50 border border-teal-200 rounded-xl p-8 max-w-2xl mx-auto">
-              <p className="text-xl text-teal-800 font-semibold leading-relaxed">
-                Essas são as queixas reais de milhares de brasileiros.<br />
-                <span className="text-teal-600">Você não está sozinho nessa!</span>
-              </p>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* Common Enemy Section */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 2.1 }}
-          className="mb-20"
-        >
-          {/* Section Title */}
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
-              O Verdadeiro Inimigo da sua Paz e do seu Processo:
-            </h2>
-          </div>
-
-          {/* Enemy Content */}
-          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto">
-            <div className="flex flex-col lg:flex-row">
-              {/* Visual Element */}
-              <div className="lg:w-1/3 bg-white flex items-center justify-center p-4">
-                <motion.div
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 2.3 }}
-                  className="text-center"
-                >
-                  {/* Image with Question Mark */}
-                  <div className="relative">
-                    <div className="w-48 h-48 flex items-center justify-center mb-4 mx-auto">
-                      <LazyImage 
-                        src="/Cópia-de-dr_processo_logo.webp" 
-                        alt="Advogado Negligente" 
-                        className="w-full h-full object-contain"
-                        width={192}
-                        height={192}
-                      />
-                    </div>
-                  </div>
-                  <p className="text-gray-900 font-semibold text-lg">O Advogado Negligente</p>
-                </motion.div>
-              </div>
-
-              {/* Text Content */}
-              <div className="lg:w-2/3 p-8 lg:p-12">
-                <motion.div
-                  initial={{ x: 20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 2.5 }}
-                >
-                  <p className="text-lg text-gray-700 leading-relaxed mb-6">
-                    <span className="font-semibold text-gray-900">Não é a justiça, nem a complexidade da lei.</span> O que rouba sua tranquilidade é o advogado que:
-                  </p>
-                  
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
-                      <p className="text-gray-700"><span className="font-semibold">Some após o contrato</span> e deixa você no escuro</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
-                      <p className="text-gray-700"><span className="font-semibold">Não responde mensagens</span> nem retorna ligações</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
-                      <p className="text-gray-700"><span className="font-semibold">Não repassa informações</span> sobre o andamento do processo</p>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
-                      <p className="text-gray-700">E em alguns casos, <span className="font-semibold text-red-600">recebe valores e não entrega ao cliente</span></p>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 p-6 bg-red-50 border border-red-200 rounded-xl">
-                    <p className="text-red-800 font-semibold text-center">
-                      É hora de retomar o controle da SUA vida e do SEU processo!
-                    </p>
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Benefits Section */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 2.7 }}
-          className="mb-20"
-        >
-          {/* Section Title */}
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
-              O Dr. Processo é a sua Solução Definitiva para:
-            </h2>
-          </div>
-
-          {/* Benefits Grid */}
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {benefits.map((benefit, index) => {
-              const IconComponent = benefit.icon;
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 2.9 + (index * 0.1) }}
-                  className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
-                >
-                  <div className="p-8">
-                    <div className="flex items-start gap-4 mb-6">
-                      <div className={`bg-gradient-to-r ${benefit.color} p-4 rounded-xl shadow-lg`}>
-                        <IconComponent className="w-8 h-8 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-bold text-gray-900 mb-3">
-                          {benefit.title}
-                        </h3>
-                        <p className="text-gray-700 leading-relaxed">
-                          {benefit.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-green-600">
-                      <CheckCircle className="w-5 h-5" />
-                      <span className="font-semibold">Solução Garantida</span>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Differential */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 3.4 }}
-            className="text-center mt-16"
-          >
-            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl">
-              <div className="flex items-center justify-center gap-3 mb-4">
-                <div className="bg-white bg-opacity-20 p-3 rounded-full">
-                  <Users className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-2xl font-bold text-white">Nosso Diferencial</h3>
-              </div>
-              <p className="text-xl text-white leading-relaxed">
-                <span className="font-semibold">Nosso foco é exclusivamente você, cidadão comum.</span><br />
-                Não somos para advogados, somos para sua tranquilidade!
-              </p>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* How It Works Section */}
-        <motion.div
-          id="como-funciona"
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 3.6 }}
-          className="mb-20"
-        >
-          {/* Section Title */}
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
-              Como o Dr. Processo Funciona em Apenas 3 Passos Simples:
-            </h2>
-          </div>
-
-          {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {steps.map((step, index) => {
-              const IconComponent = step.icon;
-              return (
-                <motion.div
-                  key={index}
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 3.8 + (index * 0.2) }}
-                >
-                  <div className="flex flex-col items-center gap-8">
-                    {/* Step Number and Icon */}
-                    <div className="flex-shrink-0">
-                      <div className={`bg-gradient-to-r ${step.color} rounded-2xl p-8 shadow-2xl`}>
-                        <div className="flex flex-col items-center text-white">
-                          <div className="bg-white bg-opacity-20 rounded-full p-4 mb-4">
-                            <IconComponent className="w-12 h-12" />
-                          </div>
-                          <div className="bg-white text-gray-900 rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
-                            {step.number}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Step Content */}
-                    <div className="text-center">
-                      <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100">
-                        <h3 className="text-2xl font-bold text-gray-900 mb-4">
-                          Passo {step.number}: {step.title}
-                        </h3>
-                        <p className="text-lg text-gray-700 leading-relaxed">
-                          {step.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Infographic Summary */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 4.4 }}
-            className="text-center mt-16"
-          >
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 max-w-4xl mx-auto border border-gray-200">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                É simples assim! Em poucos minutos você tem o controle total.
-              </h3>
-              <div className="flex flex-wrap justify-center items-center gap-6 text-gray-600">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                  <span className="font-semibold">Rápido</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="font-semibold">Fácil</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                  <span className="font-semibold">Automático</span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-
-        {/* Social Proof Section */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 4.6 }}
-          className="mb-20"
-        >
-          {/* Section Title */}
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
-              O que nossos usuários (e a realidade) dizem sobre a dor de depender de advogados:
-            </h2>
-          </div>
-
-          {/* Testimonials Grid */}
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
-            {testimonials.map((testimonial, index) => (
-              <motion.div
-                key={index}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 4.8 + (index * 0.1) }}
-                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
-              >
-                {/* Quote Icon */}
-                <div className="flex justify-center mb-6">
-                  <div className="bg-teal-100 p-3 rounded-full">
-                    <Quote className="w-8 h-8 text-teal-600" />
-                  </div>
-                </div>
-
-                {/* Testimonial Text */}
-                <blockquote className="text-gray-700 text-lg leading-relaxed mb-6 text-center italic">
-                  "{testimonial.text}"
-                </blockquote>
-
-                {/* Rating */}
-                <div className="flex justify-center mb-6">
-                  <div className="flex gap-1">
-                    {[...Array(testimonial.rating)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
-                    ))}
-                  </div>
-                </div>
-
-                {/* User Info */}
-                <div className="flex items-center justify-center gap-4">
-                  <LazyImage
-                    src={testimonial.avatar}
-                    alt={testimonial.name}
-                    className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
-                    width={64}
-                    height={64}
-                  />
-                  <div className="text-center">
-                    <p className="font-semibold text-gray-900 text-lg">
-                      {testimonial.name}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Usuário verificado
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Statistics */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.2 }}
-            className="text-center"
-          >
-            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-12 max-w-4xl mx-auto shadow-2xl">
-              <div className="flex items-center justify-center gap-4 mb-6">
-                <div className="bg-white bg-opacity-20 p-4 rounded-full">
-                  <Users className="w-12 h-12 text-white" />
-                </div>
-                <div className="text-left">
-                  <div className="text-4xl font-bold text-white mb-2">
-                    11.265.247
-                  </div>
-                  <p className="text-xl text-white opacity-90">
-                    Brasileiros já recuperaram o controle
-                  </p>
-                </div>
-              </div>
-              
-              <p className="text-2xl text-white font-semibold leading-relaxed">
-                Mais de <span className="text-yellow-300">11 milhões de brasileiros</span> já recuperaram o controle de seus processos com o Dr. Processo!
-              </p>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-2">98.7%</div>
-                  <p className="text-white opacity-90">Satisfação dos usuários</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-2">132 Milhões</div>
-                  <p className="text-white opacity-90">De processos pesquisados</p>
-                </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white mb-2">100%</div>
-                  <p className="text-white opacity-90">Dados seguros e protegidos</p>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-
         {/* FAQ Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 5.4 }}
+          transition={{ duration: 0.6, delay: 6.2 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -1002,7 +1253,7 @@ export default function Home() {
                 key={index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 5.6 + (index * 0.1) }}
+                transition={{ duration: 0.6, delay: 6.4 + (index * 0.1) }}
                 className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
               >
                 <button

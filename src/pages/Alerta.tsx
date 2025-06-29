@@ -27,6 +27,8 @@ export default function Alerta() {
   const [alertaData, setAlertaData] = useState<AlertaData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const cardsPerPage = 10;
 
   useEffect(() => {
     console.log('Alerta.tsx: Starting to load alertaData from localStorage');
@@ -94,7 +96,7 @@ export default function Alerta() {
 
   // Function to handle Stripe checkout
   const handleStripeCheckout = () => {
-    const baseUrl = 'https://buy.stripe.com/test_9B6eVc5hTbME5yJagPbwk01';
+    const baseUrl = 'https://go.unicornify.com.br/pc41lvfs7g';
     const params = new URLSearchParams();
     
     // CRITICAL: Add consultaId as client_reference_id
@@ -418,6 +420,10 @@ export default function Alerta() {
     fictitiousCardsCount: fictitiousCards.length
   });
 
+  const allCards = [processoExibicao, ...fictitiousCards].filter(Boolean);
+  const totalPages = Math.ceil(allCards.length / cardsPerPage);
+  const paginatedCards = allCards.slice((currentPage - 1) * cardsPerPage, currentPage * cardsPerPage);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
       <main className="flex-1 container mx-auto px-4 py-12 max-w-5xl">
@@ -460,37 +466,34 @@ export default function Alerta() {
           </h2>
 
           <div className="grid md:grid-cols-2 gap-8">
-            {/* Real Process Card */}
-            {processoExibicao && (
+            {/* Cards paginated */}
+            {paginatedCards.map((card: any, index: number) => (
               <motion.div
+                key={card.id || index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.6 }}
+                transition={{ duration: 0.6, delay: 0.6 + (index * 0.2) }}
                 className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 relative overflow-hidden"
               >
                 <div className="flex items-start gap-4 mb-6">
-                  <div className="bg-teal-100 p-3 rounded-lg">
-                    <FileText className="w-8 h-8 text-teal-600" />
+                  <div className={card.nome_envolvido ? "bg-teal-100 p-3 rounded-lg" : "bg-gray-100 p-3 rounded-lg"}>
+                    <FileText className={card.nome_envolvido ? "w-8 h-8 text-teal-600" : "w-8 h-8 text-gray-600"} />
                   </div>
                   <div className="flex-1">
                     <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {processoExibicao.nome_envolvido}
+                      {card.nome_envolvido || card.nome}
                     </h3>
                     <p className="text-gray-600 mb-4">
                       Processo nº <span style={{ filter: 'blur(5px)' }} className="font-mono">
-                        {processoExibicao.numero_cnj}
+                        {card.numero_cnj || card.numero}
                       </span>
                     </p>
                   </div>
                 </div>
-
-                {/* Blurred Summary */}
                 <div className="relative mb-6">
                   <div style={{ filter: 'blur(5px)' }} className="text-gray-700 leading-relaxed">
-                    {processoExibicao.resumo_borrado}
+                    {card.resumo_borrado || card.resumo}
                   </div>
-                  
-                  {/* Overlay */}
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-lg">
                     <div className="bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-center shadow-lg">
                       <Lock className="w-5 h-5 inline mr-2" />
@@ -502,58 +505,7 @@ export default function Alerta() {
 
                 <button
                   onClick={() => setIsModalOpen(true)}
-                  className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-3 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-                >
-                  <Eye className="w-5 h-5" />
-                  Desbloquear Processo
-                </button>
-              </motion.div>
-            )}
-
-            {/* Fictitious Process Cards */}
-            {fictitiousCards.map((card, index) => (
-              <motion.div
-                key={card.id}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.8 + (index * 0.2) }}
-                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 relative overflow-hidden"
-              >
-                <div className="flex items-start gap-4 mb-6">
-                  <div className="bg-gray-100 p-3 rounded-lg">
-                    <FileText className="w-8 h-8 text-gray-600" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {card.nome}
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      Processo nº <span style={{ filter: 'blur(5px)' }} className="font-mono">
-                        {card.numero}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-
-                {/* Blurred Summary */}
-                <div className="relative mb-6">
-                  <div style={{ filter: 'blur(5px)' }} className="text-gray-700 leading-relaxed">
-                    {card.resumo}
-                  </div>
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-lg">
-                    <div className="bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-center shadow-lg">
-                      <Lock className="w-5 h-5 inline mr-2" />
-                      Detalhes Cruciais Ocultos<br />
-                      <span className="text-sm">Desbloqueie para Ver!</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="w-full bg-gradient-to-r from-gray-600 to-gray-700 text-white py-3 rounded-xl font-semibold hover:from-gray-700 hover:to-gray-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                  className={`w-full bg-gradient-to-r ${card.nome_envolvido ? 'from-teal-600 to-teal-700' : 'from-gray-600 to-gray-700'} text-white py-3 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2`}
                 >
                   <Eye className="w-5 h-5" />
                   Desbloquear Processo
@@ -561,6 +513,14 @@ export default function Alerta() {
               </motion.div>
             ))}
           </div>
+          {/* Paginação */}
+          {totalPages > 1 && (
+            <div className="flex justify-center mt-8 gap-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">Anterior</button>
+              <span className="px-4 py-2">Página {currentPage} de {totalPages}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">Próxima</button>
+            </div>
+          )}
         </motion.div>
 
         {/* "Cavar Mais Fundo" Alert */}
