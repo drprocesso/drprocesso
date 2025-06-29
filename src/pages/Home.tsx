@@ -1,677 +1,1170 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, FileText, X, Eye, Lock, SearchX, Users, Unlock, MessageSquare, Bell, MessageCircleQuestion, Award, Watch } from 'lucide-react';
+import { Play, UserX, FileQuestion, AlertTriangle, Clock, Shield, UserMinus, CheckCircle, Eye, MessageSquare, Bell, Users, Search, FileText, Smartphone, Star, Quote, Lock, Timer, Award, Phone, Mail, User, ChevronDown, ChevronUp, Loader2, LogIn } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { HashLink } from 'react-router-hash-link';
+import { supabase } from '../lib/supabase';
+import LazyImage from '../components/LazyImage';
+import OptimizedVideo from '../components/OptimizedVideo';
+import { usePassiveEventListener } from '../hooks/usePassiveEventListener';
+import { debounce } from '../utils/performance';
 
-interface AlertaData {
-  id: string;
-  whatsapp: string;
-  nome: string;
-  status: string;
-  cpf: string;
-  email: string;
-  total_processos_alerta: number;
-  processo_exibicao_borrado: string | {
-    nome_envolvido: string;
-    numero_cnj: string;
-    resumo_borrado: string;
-  };
-  possui_processo_real_card: boolean;
-  created_at: string;
-  updated_at: string;
-  mensagemNaoEncontrado?: string;
-}
-
-export default function Alerta() {
+export default function Home() {
   const navigate = useNavigate();
-  const [alertaData, setAlertaData] = useState<AlertaData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const cardsPerPage = 10;
-
-  useEffect(() => {
-    console.log('Alerta.tsx: Starting to load alertaData from localStorage');
-    
-    // Get alerta data from localStorage
-    const alertaDataString = localStorage.getItem('alertaData');
-    console.log('Alerta.tsx: Raw alertaData from localStorage:', alertaDataString);
-    
-    if (alertaDataString) {
-      try {
-        const data = JSON.parse(alertaDataString);
-        console.log('Alerta.tsx: Parsed alertaData:', data);
-        
-        // More flexible validation - just check if we have the essential fields
-        if (data && typeof data === 'object' && data.id && data.total_processos_alerta !== undefined) {
-          console.log('Alerta.tsx: Data validation passed, setting alertaData');
-          setAlertaData(data);
-        } else {
-          console.warn('Alerta.tsx: Data validation failed - missing essential fields:', data);
-          console.warn('Alerta.tsx: Required fields check - id:', !!data.id, 'total_processos_alerta:', data.total_processos_alerta);
-          navigate('/');
-        }
-      } catch (error) {
-        console.error('Alerta.tsx: Error parsing alerta data:', error);
-        navigate('/');
-      }
-    } else {
-      console.warn('Alerta.tsx: No alertaData found in localStorage');
-      // No data found, redirect to home
-      navigate('/');
-    }
-    
-    setIsLoading(false);
-  }, [navigate]);
-
-  // Generate fictitious cards for additional processes
-  const generateFictitiousCards = (count: number) => {
-    const cards = [];
-    for (let i = 0; i < count; i++) {
-      cards.push({
-        id: `fictitious-${i}`,
-        nome: 'Processo em seu nome (Confidencial)',
-        numero: 'XXXXXXXXXXXXXX.XXXX.X.XX.XXXX',
-        resumo: 'Última movimentação: [Detalhes Confidenciais]. Status atual: [Informação Protegida]. Próximas ações: [Dados Sigilosos]. Valor envolvido: [Quantia Reservada]. Prazo: [Data Oculta].'
-      });
-    }
-    return cards;
-  };
-
-  // Parse processo_exibicao_borrado if it's a string
-  const getProcessoExibicao = () => {
-    if (!alertaData?.processo_exibicao_borrado) return null;
-    
-    if (typeof alertaData.processo_exibicao_borrado === 'string') {
-      try {
-        return JSON.parse(alertaData.processo_exibicao_borrado);
-      } catch (error) {
-        console.error('Alerta.tsx: Error parsing processo_exibicao_borrado string:', error);
-        return null;
-      }
-    }
-    
-    return alertaData.processo_exibicao_borrado;
-  };
-
-  // Function to handle Stripe checkout
-  const handleStripeCheckout = () => {
-    const baseUrl = 'https://go.unicornify.com.br/pc41lvfs7g'; 
-    const params = new URLSearchParams();
-    
-    // CRITICAL: Add consultaId as client_reference_id
-    if (alertaData?.id) {
-      params.append('client_reference_id', alertaData.id);
-    }
-    
-    // Add customer email if available
-    if (alertaData?.email) {
-      params.append('customer_email', alertaData.email);
-    }
-    
-    const stripeCheckoutUrl = `${baseUrl}?${params.toString()}`;
-    console.log('Opening Stripe checkout with consultaId as client_reference_id:', alertaData?.id);
-    window.open(stripeCheckoutUrl, '_blank');
-  };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-3xl">
-          <motion.div 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col items-center mb-16"
-          >
-            <img src="/Dr-Processo-Logo.webp" alt="Dr. Processo" className="h-20 object-contain mb-4" />
-            <h2 className="text-xl text-gray-600">Carregando resultados...</h2>
-          </motion.div>
-        </main>
-      </div>
-    );
-  }
-
-  if (!alertaData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-3xl">
-          <motion.div 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col items-center mb-16"
-          >
-            <img src="/Dr-Processo-Logo.webp" alt="Dr. Processo" className="h-20 object-contain mb-4" />
-          </motion.div>
-
-          <div className="bg-red-50 border border-red-200 rounded-xl p-8 text-center">
-            <h2 className="text-2xl font-bold text-red-800 mb-4">Dados não encontrados</h2>
-            <p className="text-red-600 mb-6">Não foi possível carregar os dados da consulta.</p>
-            <button
-              onClick={() => navigate('/')}
-              className="bg-teal-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-teal-700 transition-colors duration-200"
-            >
-              Voltar ao início
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  // Check if no processes were found
-  const noProcessesFound = alertaData.mensagemNaoEncontrado || alertaData.total_processos_alerta === 0;
-
-  if (noProcessesFound) {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
-        <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
-          {/* Logo */}
-          <motion.div 
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6 }}
-            className="flex flex-col items-center mb-16"
-          >
-            <img src="/Dr-Processo-Logo.webp" alt="Dr. Processo" className="h-20 object-contain mb-4" />
-          </motion.div>
-
-          {/* No Processes Found Content */}
-          <motion.div
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-center max-w-3xl mx-auto"
-          >
-            {/* Icon */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.6, delay: 0.4, type: "spring", stiffness: 200 }}
-              className="flex justify-center mb-8"
-            >
-              <div className="bg-blue-100 p-8 rounded-full">
-                <SearchX className="w-20 h-20 text-blue-600" />
-              </div>
-            </motion.div>
-
-            {/* Title */}
-            <motion.h1
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-              className="text-3xl md:text-4xl font-bold text-gray-900 mb-6"
-            >
-              Não encontramos nenhum processo no seu nome ou CPF
-            </motion.h1>
-
-            {/* Explanation */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-              className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 mb-12"
-            >
-              <p className="text-xl text-gray-700 leading-relaxed mb-6">
-                Sua busca inicial não retornou processos vinculados ao CPF/nome informado. 
-                Isso não significa que você não tenha direitos ou que não haja outros registros em diferentes bases.
-              </p>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-6">
-                <h3 className="text-lg font-semibold text-blue-800 mb-3">
-                  Por que isso pode acontecer?
-                </h3>
-                <ul className="text-left space-y-2 text-blue-700">
-                  <li className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    Processos muito antigos podem estar arquivados em bases diferentes
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    Alguns tribunais têm sistemas separados não integrados
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    Processos recém-distribuídos podem não aparecer imediatamente
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
-                    Variações no nome ou grafia podem afetar a busca
-                  </li>
-                </ul>
-              </div>
-
-              <p className="text-lg text-gray-700 leading-relaxed">
-                Podemos tentar uma busca mais profunda com nossa funcionalidade 
-                <span className="font-semibold text-teal-600"> "Cavar Mais Fundo"</span>, 
-                ou você pode revisar os dados e tentar novamente.
-              </p>
-            </motion.div>
-
-            {/* Action Buttons */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 1.0 }}
-              className="flex flex-col sm:flex-row gap-4 justify-center"
-            >
-              <button
-                onClick={() => navigate('/')}
-                className="bg-teal-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                Fazer nova consulta
-              </button>
-              
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-8 py-4 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-300 shadow-lg hover:shadow-xl"
-              >
-                Entender "Cavar Mais Fundo"
-              </button>
-            </motion.div>
-
-            {/* Additional Info */}
-            <motion.div
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.6, delay: 1.2 }}
-              className="mt-12 text-center"
-            >
-              <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-                <p className="text-gray-600 leading-relaxed">
-                  <span className="font-semibold">Lembre-se:</span> A ausência de processos na busca inicial 
-                  é comum e não indica necessariamente que você não possui direitos ou ações judiciais. 
-                  Muitas vezes, uma busca mais aprofundada revela informações importantes.
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        </main>
-
-        {/* Footer */}
-        <footer className="py-6 text-center text-sm text-gray-600">
-          <p>Dr. Processo © Todos os direitos reservados.</p>
-        </footer>
-
-        {/* Modal de Planos - Simplified for "Cavar Mais Fundo" explanation */}
-        <AnimatePresence>
-          {isModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-            >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-white rounded-2xl p-8 max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto"
-              >
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="absolute right-4 top-4 text-gray-500 hover:text-gray-700 transition-colors duration-200 z-10"
-                >
-                  <X size={24} />
-                </button>
-
-                <div className="text-center mb-8">
-                  <div className="bg-teal-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                    <Eye className="w-10 h-10 text-teal-600" />
-                  </div>
-                  
-                  <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                    Você está a um passo de descobrir tudo que seu advogado não te conta, diretamente no seu WhatsApp.
-                  </h2>
-                  
-                  <p className="text-xl text-gray-600 mb-8">
-                    Desbloqueie os detalhes do seu processo e tenha controle total da sua vida jurídica.
-                  </p>
-                </div>
-
-                {/* Single Plan Section */}
-                <div className="bg-gradient-to-r from-teal-50 to-blue-50 border-2 border-teal-300 rounded-xl p-8 mb-8">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-                    ACOMPANHAMENTO COMPLETO
-                  </h3>
-                  
-                  <p className="text-gray-700 mb-6 leading-relaxed text-center">
-                    A solução definitiva para nunca mais se sentir no escuro. Receba tudo sobre SEU processo, em tempo real, com a clareza que só o Dr. Processo oferece.
-                  </p>
-                  
-                  <div className="bg-white border border-teal-200 rounded-xl p-6 mb-6">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">O que você vai receber:</h4>
-                    <div className="grid md:grid-cols-2 gap-4 text-gray-700">
-                      <div className="flex items-start gap-3">
-                        <Users className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Visão 360°:</strong> A lista completa de todos os processos em seu nome, até o que você não sabia.</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <FileText className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Identificação Detalhada:</strong> Número do processo, tipo de ação, de onde o processo é (Tribunal/Comarca).</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Users className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Partes Envolvidas:</strong> Quem são as partes (você, empresas, outras pessoas).</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Unlock className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Processo Desbloqueado:</strong> Acesse todos os detalhes do processo que VOCÊ escolher (Valor, Movimentações, etc.), sem nada bloqueado.</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <MessageSquare className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Resumos Exclusivos:</strong> Movimentações do seu processo traduzidas em linguagem simples (sem juridiquês), direto no seu WhatsApp.</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Bell className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Alertas Instantâneos:</strong> Notificações no seu WhatsApp a CADA nova atualização do seu processo. Seu processo andou? Vc vai saber antes do seu advogado!</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <MessageCircleQuestion className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Tire suas dúvidas:</strong> sobre seu processo com o Dr Processo pelo whatsapp. Seu advogado não quis te explicar? O Dr. Processo vai tirar todas as suas dúvidas, a qualquer hora do dia!</span>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Award className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Suporte VIP:</strong> Atendimento direto e prioritário via WhatsApp.</span>
-                      </div>
-                      <div className="flex items-start gap-3 md:col-span-2">
-                        <Watch className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                        <span><strong>Acompanhamento completo:</strong> via whatsapp para você ficar sabendo de todos os detalhes antes mesmo do seu advogado!</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 mb-6">
-                    <p className="text-green-800 font-semibold text-center">
-                      🔓 A liberdade de ter controle total sobre seu processo, sem depender de ninguém. Sua paz de espírito vale cada centavo!
-                    </p>
-                  </div>
-
-                  <div className="text-center">
-                    <button 
-                      onClick={handleStripeCheckout}
-                      className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white px-8 py-4 rounded-xl font-bold text-xl hover:from-teal-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl mb-2"
-                    >
-                      RECEBA TUDO NO SEU WHATSAPP!
-                    </button>
-                    <p className="text-sm text-gray-600">
-                      *Teste por 7 dias, cancele quando quiser.
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    );
-  }
-
-  // If processes were found, continue with the original layout
-  const processoExibicao = getProcessoExibicao();
-  const fictitiousCards = alertaData.total_processos_alerta > 1 
-    ? generateFictitiousCards(alertaData.total_processos_alerta - 1) 
-    : [];
-
-  console.log('Alerta.tsx: Rendering with data:', {
-    totalProcessos: alertaData.total_processos_alerta,
-    processoExibicao,
-    fictitiousCardsCount: fictitiousCards.length
+  const [offerFormData, setOfferFormData] = useState({
+    cpf: '',
+    email: '',
+    whatsapp: '',
+    consent: false
   });
+  const [offerFormErrors, setOfferFormErrors] = useState({
+    cpf: false,
+    email: false,
+    whatsapp: false
+  });
+  const [isOfferLoading, setIsOfferLoading] = useState(false);
+  const [offerErrorMessage, setOfferErrorMessage] = useState<string | null>(null);
+  const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
 
-  const allCards = [processoExibicao, ...fictitiousCards].filter(Boolean);
-  const totalPages = Math.ceil(allCards.length / cardsPerPage);
-  const paginatedCards = allCards.slice((currentPage - 1) * cardsPerPage, currentPage * cardsPerPage);
+  // Memoize static data to prevent unnecessary re-renders
+  const painPoints = useMemo(() => [
+    {
+      icon: UserX,
+      text: "Meu advogado sumiu e não responde mais!",
+      description: "Sensação de abandono"
+    },
+    {
+      icon: FileQuestion,
+      text: "Não entendo nada do meu processo, é só juridiquês!",
+      description: "Falta de clareza"
+    },
+    {
+      icon: AlertTriangle,
+      text: "Tenho medo de estar sendo enganado e perder meu dinheiro!",
+      description: "Desconfiança e medo de golpe"
+    },
+    {
+      icon: Clock,
+      text: "Faz meses que não tenho notícias, estou ansioso sem saber se ganhei ou perdi!",
+      description: "Ansiedade por falta de notícias"
+    },
+    {
+      icon: Shield,
+      text: "Queria saber tudo sozinho, sem depender dele!",
+      description: "Desejo de controle direto"
+    }
+  ], []);
+
+  const benefits = useMemo(() => [
+    {
+      icon: Users,
+      title: "Autonomia Total",
+      description: "Consulte seu processo usando seu CPF e veja tudo o que está em andamento em seu nome.",
+      color: "from-blue-500 to-blue-600"
+    },
+    {
+      icon: MessageSquare,
+      title: "Linguagem Clara e Acessível",
+      description: "Receba resumos detalhados em português, sem juridiquês complicado, para você entender cada passo.",
+      color: "from-green-500 to-green-600"
+    },
+    {
+      icon: Eye,
+      title: "Transparência e Confiança",
+      description: "Acompanhe cada movimentação e saiba exatamente o que acontece, eliminando o medo de ser enganado.",
+      color: "from-purple-500 to-purple-600"
+    },
+    {
+      icon: Bell,
+      title: "Paz de Espírito Imediata",
+      description: "Receba notificações automáticas no seu WhatsApp a cada atualização, aliviando a ansiedade.",
+      color: "from-orange-500 to-orange-600"
+    },
+    {
+      icon: Shield,
+      title: "Independência Total",
+      description: "Tenha o controle direto do seu processo, sem ter que correr atrás de informações com seu advogado.",
+      color: "from-teal-500 to-teal-600"
+    },
+    {
+      icon: Lock,
+      title: "Informação Confiável e Segura",
+      description: "Receba dados direto dos tribunais e resumos gerados com inteligência artificial, garantindo a veracidade e a proteção das suas informações.",
+      color: "from-gray-500 to-gray-600"
+    }
+  ], []);
+
+  const steps = useMemo(() => [
+    {
+      number: "1",
+      icon: Search,
+      title: "Consulte com seu CPF",
+      description: "No nosso site, você digita o seu CPF e nós mostramos todos os processos judiciais abertos em seu nome, em todas as esferas.",
+      color: "from-blue-500 to-blue-600"
+    },
+    {
+      number: "2",
+      icon: FileText,
+      title: "Escolha e Receba o Resumo",
+      description: "Selecione o processo que deseja acompanhar. Em instantes, você recebe um resumo completo e fácil de entender no seu WhatsApp.",
+      color: "from-green-500 to-green-600"
+    },
+    {
+      number: "3",
+      icon: Smartphone,
+      title: "Acompanhe em Tempo Real",
+      description: "A partir daí, sempre que houver uma nova movimentação no seu processo, você recebe uma notificação instantânea diretamente no seu WhatsApp.",
+      color: "from-purple-500 to-purple-600"
+    }
+  ], []);
+
+  const testimonials = useMemo(() => [
+    {
+      name: "Maria S.",
+      avatar: "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      text: "Finalmente consigo dormir tranquila sabendo o que acontece com meu processo. O Dr. Processo mudou minha vida!",
+      rating: 5
+    },
+    {
+      name: "João P.",
+      avatar: "https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      text: "Meu advogado não me atendia nunca. Agora, com as notificações no WhatsApp, eu sei de tudo antes dele! É libertador!",
+      rating: 5
+    },
+    {
+      name: "Ana L.",
+      avatar: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&fit=crop&crop=face",
+      text: "Chega de juridiquês! O resumo é claro, direto, e me faz entender cada passo. Valeu cada centavo!",
+      rating: 5
+    }
+  ], []);
+
+  const faqItems = useMemo(() => [
+    {
+      question: "O Dr. Processo substitui um advogado?",
+      answer: "Não, o Dr. Processo não substitui um advogado. Ele complementa o trabalho jurídico, dando a você controle total das informações do seu processo. Você continua com seu advogado, mas agora tem autonomia para acompanhar tudo em tempo real, sem depender de respostas que podem não vir."
+    },
+    {
+      question: "É seguro colocar meu CPF?",
+      answer: "Sim, é completamente seguro. Seus dados são protegidos por criptografia SSL e usados exclusivamente para a consulta do seu processo. Seguimos rigorosamente a Lei Geral de Proteção de Dados (LGPD) e não compartilhamos suas informações com terceiros."
+    },
+    {
+      question: "Consigo ver processos antigos?",
+      answer: "Sim! O sistema busca por todos os processos em seu nome, incluindo processos antigos e arquivados. Você terá acesso ao histórico completo da sua vida judicial, desde processos ativos até os já finalizados."
+    },
+    {
+      question: "Se eu tiver mais de um processo, posso acompanhar todos?",
+      answer: "Sim! Você pode acompanhar quantos processos desejar e irá receber atualizações de todos eles diretamente em seu Whatsapp."
+    },
+    {
+      question: "Como recebo as informações?",
+      answer: "Você recebe as informações diretamente no seu WhatsApp, de forma clara e objetiva, sem juridiquês. Também enviamos uma cópia por e-mail. As notificações são automáticas sempre que há movimentação no seu processo."
+    },
+    {
+      question: "Qual a diferença para outros sites que mostram processos?",
+      answer: "Nosso diferencial é a linguagem simples e acessível, resumos exclusivos feitos especialmente para você entender, e as notificações automáticas no WhatsApp. Transformamos informação jurídica complexa em algo que qualquer pessoa consegue compreender."
+    }
+  ], []);
+
+  // Optimized scroll handler with passive event listener
+  const handleScroll = useMemo(
+    () => debounce(() => {
+      // Scroll handling logic here if needed
+    }, 16),
+    []
+  );
+
+  usePassiveEventListener('scroll', handleScroll, { passive: true });
+
+  // Validation functions for offer form
+  const validateOfferWhatsapp = (whatsapp: string) => {
+    const numbers = whatsapp.replace(/\D/g, '');
+    return numbers.length === 11 && !numbers.startsWith('0');
+  };
+
+  const validateOfferEmail = (email: string) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const validateOfferCPF = (cpf: string) => {
+    const numbers = cpf.replace(/\D/g, '');
+    return numbers.length === 11;
+  };
+
+  // Handle offer form submission
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setOfferErrorMessage(null);
+    
+    // Validate all fields
+    const errors = {
+      whatsapp: !validateOfferWhatsapp(offerFormData.whatsapp),
+      email: !validateOfferEmail(offerFormData.email),
+      cpf: !validateOfferCPF(offerFormData.cpf)
+    };
+
+    setOfferFormErrors(errors);
+
+    // If there are any errors, don't submit
+    if (Object.values(errors).some(error => error)) {
+      return;
+    }
+
+    setIsOfferLoading(true);
+
+    try {
+      // Clean up phone and CPF
+      const cleanWhatsapp = offerFormData.whatsapp.replace(/\D/g, '');
+      const cleanCPF = offerFormData.cpf.replace(/\D/g, '');
+
+      console.log('Starting form submission with data:', {
+        whatsapp: cleanWhatsapp,
+        email: offerFormData.email,
+        cpf: cleanCPF
+      });
+
+      // Insert into consultas table first
+      const { data: consultaData, error: consultaError } = await supabase
+        .from('consultas')
+        .insert([{
+          whatsapp: cleanWhatsapp,
+          cpf: cleanCPF,
+          email: offerFormData.email,
+          nome: 'Cliente', // Default placeholder
+          status: 'pending'
+        }])
+        .select('id')
+        .single();
+
+      if (consultaError) throw consultaError;
+
+      const consultaId = consultaData.id;
+      console.log('Consulta created with ID:', consultaId);
+
+      // Send data to webhook with consultaId
+      console.log('Sending webhook request...');
+      const webhookResponse = await fetch('https://drprocesso.app.n8n.cloud/webhook/callback-escavador', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          whatsapp: cleanWhatsapp,
+          email: offerFormData.email,
+          document: cleanCPF,
+          consultaId: consultaId
+        })
+      });
+
+      console.log('Webhook response status:', webhookResponse.status);
+      console.log('Webhook response headers:', Object.fromEntries(webhookResponse.headers.entries()));
+
+      if (!webhookResponse.ok) {
+        throw new Error(`Webhook request failed with status ${webhookResponse.status}`);
+      }
+
+      // Clone the response to read it as text first
+      const responseClone = webhookResponse.clone();
+      const rawResponseText = await responseClone.text();
+      console.log('Raw webhook response text:', rawResponseText);
+
+      // Get webhook response data
+      const webhookData = await webhookResponse.json();
+      console.log('Parsed webhookData:', webhookData);
+      
+      // Store webhook response in localStorage
+      localStorage.setItem('alertaData', JSON.stringify(webhookData));
+      console.log('Data stored in localStorage:', localStorage.getItem('alertaData'));
+
+      // Navigate to loading page with consultaId
+      navigate(`/loading?consultaId=${consultaId}`);
+
+      // Reset form
+      setOfferFormData({
+        cpf: '',
+        email: '',
+        whatsapp: '',
+        consent: false
+      });
+      
+      // Reset errors
+      setOfferFormErrors({
+        cpf: false,
+        email: false,
+        whatsapp: false
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setOfferErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
+    } finally {
+      setIsOfferLoading(false);
+    }
+  };
+
+  // Handle form field changes for offer form
+  const handleOfferWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    setOfferFormData({ ...offerFormData, whatsapp: value });
+    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateOfferWhatsapp(value) });
+  };
+
+  const handleOfferEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setOfferFormData({ ...offerFormData, email: value });
+    setOfferFormErrors({ ...offerFormErrors, email: !validateOfferEmail(value) });
+  };
+
+  const handleOfferCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    setOfferFormData({ ...offerFormData, cpf: value });
+    setOfferFormErrors({ ...offerFormErrors, cpf: !validateOfferCPF(value) });
+  };
+
+  const toggleFAQ = (index: number) => {
+    setExpandedFAQ(expandedFAQ === index ? null : index);
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
-      <main className="flex-1 container mx-auto px-4 py-12 max-w-5xl">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col relative">
+      {/* Login Button */}
+      <Link
+        to="/login"
+        className="absolute top-4 right-4 z-10 bg-teal-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2"
+      >
+        <LogIn className="w-4 h-4" />
+        FAZER LOGIN
+      </Link>
+
+      <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
         {/* Logo */}
         <motion.div 
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6 }}
-          className="flex flex-col items-center mb-16"
+          className="flex justify-center mb-16"
         >
-          <img src="/Dr-Processo-Logo.webp" alt="Dr. Processo" className="h-20 object-contain mb-4" />
+          <LazyImage 
+            src="/Dr-Processo-Logo.webp" 
+            alt="Dr. Processo" 
+            className="h-20 object-contain"
+            width={200}
+            height={80}
+            priority={true}
+          />
         </motion.div>
 
-        {/* Main Header */}
-        <motion.div
+        {/* Headlines */}
+        <motion.div 
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-center mb-16"
         >
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
-            Encontramos <span className="text-teal-600 font-extrabold">{alertaData.total_processos_alerta}</span> Processos Judiciais Vinculados ao Seu CPF!<br />
-            <span className="text-red-600">Mas as informações cruciais estão aguardando seu desbloqueio.</span>
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+            89% dos brasileiros estão insatisfeitos com seus advogados — veja por quê.
           </h1>
-          
-          <p className="text-xl text-gray-600 leading-relaxed max-w-4xl mx-auto">
-            Você está a um passo de entender o que realmente acontece. Para proteger seus direitos e ter total clareza, é fundamental acessar os detalhes completos.
+          <p className="text-xl md:text-2xl text-gray-600 leading-relaxed">
+            Uma reportagem polêmica mostrou o que está por trás do sumiço,<br />
+            da enrolação e da falta de respostas.
           </p>
         </motion.div>
 
-        {/* Process Cards Section */}
+        {/* Optimized Video Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className="mb-16"
+          className="mb-16 max-w-4xl mx-auto"
         >
-          <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">
-            Seus Processos Encontrados
-          </h2>
-
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Cards paginated */}
-            {paginatedCards.map((card: any, index: number) => (
-              <motion.div
-                key={card.id || index}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 0.6 + (index * 0.2) }}
-                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 relative overflow-hidden"
-              >
-                <div className="flex items-start gap-4 mb-6">
-                  <div className={card.nome_envolvido ? "bg-teal-100 p-3 rounded-lg" : "bg-gray-100 p-3 rounded-lg"}>
-                    <FileText className={card.nome_envolvido ? "w-8 h-8 text-teal-600" : "w-8 h-8 text-gray-600"} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {card.nome_envolvido || card.nome}
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                      Processo nº <span style={{ filter: 'blur(5px)' }} className="font-mono">
-                        {card.numero_cnj || card.numero}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                <div className="relative mb-6">
-                  <div style={{ filter: 'blur(5px)' }} className="text-gray-700 leading-relaxed">
-                    {card.resumo_borrado || card.resumo}
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-lg">
-                    <div className="bg-yellow-400 text-black px-4 py-2 rounded-lg font-bold text-center shadow-lg">
-                      <Lock className="w-5 h-5 inline mr-2" />
-                      Detalhes Cruciais Ocultos<br />
-                      <span className="text-sm">Desbloqueie para Ver!</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className={`w-full bg-gradient-to-r ${card.nome_envolvido ? 'from-teal-600 to-teal-700' : 'from-gray-600 to-gray-700'} text-white py-3 rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2`}
-                >
-                  <Eye className="w-5 h-5" />
-                  Desbloquear Processo
-                </button>
-              </motion.div>
-            ))}
+          <div className="aspect-video border border-gray-200 rounded-2xl overflow-hidden shadow-2xl">
+            <OptimizedVideo
+              videoId="0mTP8viA21I"
+              title="Dr. Processo Video"
+              className="w-full h-full"
+            />
           </div>
-          {/* Paginação */}
-          {totalPages > 1 && (
-            <div className="flex justify-center mt-8 gap-2">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">Anterior</button>
-              <span className="px-4 py-2">Página {currentPage} de {totalPages}</span>
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-4 py-2 rounded bg-gray-200 disabled:opacity-50">Próxima</button>
-            </div>
-          )}
         </motion.div>
 
-        {/* "Cavar Mais Fundo" Alert */}
+        {/* New Section 7: Desvende o Andamento do Seu Processo Agora! */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.0 }}
-          className="mb-16"
+          transition={{ duration: 0.6, delay: 0.6 }}
+          className="mb-20"
         >
-          <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-8 shadow-lg">
-            <div className="flex items-start gap-4 mb-6">
-              <div className="bg-amber-100 p-3 rounded-lg">
-                <AlertTriangle className="w-8 h-8 text-amber-600" />
+          {/* Section Title */}
+          <div className="text-center mb-16">
+                       
+            {/* Main Headline */}
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
+              Seu advogado sumiu? Nós te respondemos na HORA!
+              
+            </h2>
+            
+            {/* Subheadline */}
+            <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
+              Milhões de brasileiros se sentem no escuro. Você está a um passo de ter todas as informações na palma da sua mão.
+            </p>
+          </div>
+
+          {/* Form Container */}
+          <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 max-w-lg mx-auto">
+            <form onSubmit={handleOfferSubmit} className="space-y-6">
+              {offerErrorMessage && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {offerErrorMessage}
+                </div>
+              )}
+
+              {/* WhatsApp Field */}
+              <div>
+                <label htmlFor="offer-whatsapp" className="block text-sm font-semibold text-gray-700 mb-2">
+                  WhatsApp com DDD*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    id="offer-whatsapp"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      offerFormErrors.whatsapp ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={offerFormData.whatsapp}
+                    onChange={handleOfferWhatsappChange}
+                    placeholder="(99) 99999-9999"
+                  />
+                </div>
+                {offerFormErrors.whatsapp && (
+                  <p className="mt-1 text-sm text-red-500">Digite um número de WhatsApp válido com DDD (11 dígitos)</p>
+                )}
               </div>
-              <div className="flex-1">
-                <h3 className="text-2xl font-bold text-amber-800 mb-4">
-                  Alerta Dr. Processo: Identificamos {alertaData.total_processos_alerta} Processos, mas pode haver mais!
-                </h3>
-                <p className="text-amber-700 leading-relaxed mb-6">
-                  A busca inicial mostra alguns dos seus processos, mas devido à complexidade do sistema jurídico brasileiro, 
-                  processos arquivados, recém-distribuídos ou em outras jurisdições podem não aparecer nesta lista preliminar. 
-                  Para ter uma visão 100% completa e confiável, incluindo todos os processos antigos, arquivados ou aqueles 
-                  que estão ocultos na busca simples, utilize o recurso Cavar Mais Fundo.
-                </p>
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="bg-gradient-to-r from-amber-600 to-amber-700 text-white px-8 py-4 rounded-xl font-bold text-lg hover:from-amber-700 hover:to-amber-800 transition-all duration-300 shadow-lg hover:shadow-xl"
+
+              {/* Email Field */}
+              <div>
+                <label htmlFor="offer-email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  E-mail*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    id="offer-email"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      offerFormErrors.email ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={offerFormData.email}
+                    onChange={handleOfferEmailChange}
+                    placeholder="seumail@exemplo.com"
+                  />
+                </div>
+                {offerFormErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">Digite um e-mail válido</p>
+                )}
+              </div>
+
+              {/* CPF Field */}
+              <div>
+                <label htmlFor="offer-cpf" className="block text-sm font-semibold text-gray-700 mb-2">
+                  CPF*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="offer-cpf"
+                    required
+                    maxLength={14}
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      offerFormErrors.cpf ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={offerFormData.cpf}
+                    onChange={handleOfferCPFChange}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                {offerFormErrors.cpf && (
+                  <p className="mt-1 text-sm text-red-500">Digite um CPF válido (11 dígitos)</p>
+                )}
+              </div>
+
+              {/* Consent Checkbox */}
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="offer-consent"
+                  required
+                  className="mt-1.5 h-5 w-5 text-teal-600 focus:ring-2 focus:ring-teal-500 border-2 border-gray-300 rounded transition-all duration-200 ease-in-out"
+                  checked={offerFormData.consent}
+                  onChange={(e) => setOfferFormData({...offerFormData, consent: e.target.checked})}
+                />
+                <label htmlFor="offer-consent" className="text-sm text-gray-700 leading-relaxed">
+                  Autorizo o uso dos meus dados para consulta processual e comunicação do Dr. Processo.*
+                </label>
+              </div>
+
+              {/* Submit Button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isOfferLoading}
+                className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-xl font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                {isOfferLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  'Consultar Meu Processo!'
+                )}
+              </motion.button>
+            </form>
+          </div>
+
+          {/* Scarcity/Urgency Text */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="text-center mt-8"
+          >
+            <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
+              Não deixe que a demora e a falta de informação acabem com seus direitos! Consulte agora e evite surpresas extraordinárias.
+            </p>
+          </div>
+
+          {/* Reinforcement/Trust Texts */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.0 }}
+            className="text-center mt-4 text-gray-600 text-sm space-y-1"
+          >
+            <p className="flex items-center justify-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              Consulta em tempo real. Seus dados seguros e protegidos.
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <Shield className="w-4 h-4 text-blue-600" />
+              Serviço exclusivo para o cidadão, sem juridiquês.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Pain Points Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6">
+              Você se identifica com alguma dessas situações?
+            </h2>
+          </div>
+
+          {/* Pain Points Grid */}
+          <div className="space-y-6 max-w-3xl mx-auto">
+            {painPoints.map((point, index) => {
+              const IconComponent = point.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 1.4 + (index * 0.1) }}
+                  className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
                 >
-                  Cavar Mais Fundo!
-                </button>
+                  <div className="flex items-start gap-4">
+                    <div className="bg-red-100 p-3 rounded-lg flex-shrink-0">
+                      <IconComponent className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-lg font-semibold text-gray-900 mb-2">
+                        "{point.text}"
+                      </p>
+                      <p className="text-sm text-gray-600 italic">
+                        {point.description}
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Connection Text */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.9 }}
+            className="text-center mt-12"
+          >
+            <div className="bg-teal-50 border border-teal-200 rounded-xl p-8 max-w-2xl mx-auto">
+              <p className="text-xl text-teal-800 font-semibold leading-relaxed">
+                Essas são as queixas reais de milhares de brasileiros.<br />
+                <span className="text-teal-600">Você não está sozinho nessa!</span>
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Common Enemy Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 2.1 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O Verdadeiro Inimigo da sua Paz e do seu Processo:
+            </h2>
+          </div>
+
+          {/* Enemy Content */}
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden max-w-4xl mx-auto">
+            <div className="flex flex-col lg:flex-row">
+              {/* Visual Element */}
+              <div className="lg:w-1/3 bg-white flex items-center justify-center p-4">
+                <motion.div
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ duration: 0.8, delay: 2.3 }}
+                  className="text-center"
+                >
+                  {/* Image with Question Mark */}
+                  <div className="relative">
+                    <div className="w-48 h-48 flex items-center justify-center mb-4 mx-auto">
+                      <LazyImage 
+                        src="/Cópia-de-dr_processo_logo.webp" 
+                        alt="Advogado Negligente" 
+                        className="w-full h-full object-contain"
+                        width={192}
+                        height={192}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-gray-900 font-semibold text-lg">O Advogado Negligente</p>
+                </motion.div>
+              </div>
+
+              {/* Text Content */}
+              <div className="lg:w-2/3 p-8 lg:p-12">
+                <motion.div
+                  initial={{ x: 20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 2.5 }}
+                >
+                  <p className="text-lg text-gray-700 leading-relaxed mb-6">
+                    <span className="font-semibold text-gray-900">Não é a justiça, nem a complexidade da lei.</span> O que rouba sua tranquilidade é o advogado que:
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Some após o contrato</span> e deixa você no escuro</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Não responde mensagens</span> nem retorna ligações</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700"><span className="font-semibold">Não repassa informações</span> sobre o andamento do processo</p>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 bg-red-500 rounded-full mt-3 flex-shrink-0"></div>
+                      <p className="text-gray-700">E em alguns casos, <span className="font-semibold text-red-600">recebe valores e não entrega ao cliente</span></p>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 p-6 bg-red-50 border border-red-200 rounded-xl">
+                    <p className="text-red-800 font-semibold text-center">
+                      É hora de retomar o controle da SUA vida e do SEU processo!
+                    </p>
+                  </div>
+                </motion.div>
               </div>
             </div>
+          </div>
+        </motion.div>
+
+        {/* Benefits Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 2.7 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O Dr. Processo é a sua Solução Definitiva para:
+            </h2>
+          </div>
+
+          {/* Benefits Grid */}
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+            {benefits.map((benefit, index) => {
+              const IconComponent = benefit.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 2.9 + (index * 0.1) }}
+                  className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
+                >
+                  <div className="p-8">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className={`bg-gradient-to-r ${benefit.color} p-4 rounded-xl shadow-lg`}>
+                        <IconComponent className="w-8 h-8 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-xl font-bold text-gray-900 mb-3">
+                          {benefit.title}
+                        </h3>
+                        <p className="text-gray-700 leading-relaxed">
+                          {benefit.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="w-5 h-5" />
+                      <span className="font-semibold">Solução Garantida</span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Differential */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 3.4 }}
+            className="text-center mt-16"
+          >
+            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="bg-white bg-opacity-20 p-3 rounded-full">
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-white">Nosso Diferencial</h3>
+              </div>
+              <p className="text-xl text-white leading-relaxed">
+                <span className="font-semibold">Nosso foco é exclusivamente você, cidadão comum.</span><br />
+                Não somos para advogados, somos para sua tranquilidade!
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* How It Works Section */}
+        <motion.div
+          id="como-funciona"
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 3.6 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              Como o Dr. Processo Funciona em Apenas 3 Passos Simples:
+            </h2>
+          </div>
+
+          {/* Steps */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {steps.map((step, index) => {
+              const IconComponent = step.icon;
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ y: 20, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.6, delay: 3.8 + (index * 0.2) }}
+                >
+                  <div className="flex flex-col items-center gap-8">
+                    {/* Step Number and Icon */}
+                    <div className="flex-shrink-0">
+                      <div className={`bg-gradient-to-r ${step.color} rounded-2xl p-8 shadow-2xl`}>
+                        <div className="flex flex-col items-center text-white">
+                          <div className="bg-white bg-opacity-20 rounded-full p-4 mb-4">
+                            <IconComponent className="w-12 h-12" />
+                          </div>
+                          <div className="bg-white text-gray-900 rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl">
+                            {step.number}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Step Content */}
+                    <div className="text-center">
+                      <div className="bg-white rounded-2xl p-8 shadow-xl border border-gray-100">
+                        <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                          Passo {step.number}: {step.title}
+                        </h3>
+                        <p className="text-lg text-gray-700 leading-relaxed">
+                          {step.description}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Infographic Summary */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 4.4 }}
+            className="text-center mt-16"
+          >
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 max-w-4xl mx-auto border border-gray-200">
+              <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                É simples assim! Em poucos minutos você tem o controle total.
+              </h3>
+              <div className="flex flex-wrap justify-center items-center gap-6 text-gray-600">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="font-semibold">Rápido</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="font-semibold">Fácil</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                  <span className="font-semibold">Automático</span>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* Social Proof Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 4.6 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              O que nossos usuários (e a realidade) dizem sobre a dor de depender de advogados:
+            </h2>
+          </div>
+
+          {/* Testimonials Grid */}
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto mb-16">
+            {testimonials.map((testimonial, index) => (
+              <motion.div
+                key={index}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 4.8 + (index * 0.1) }}
+                className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
+              >
+                {/* Quote Icon */}
+                <div className="flex justify-center mb-6">
+                  <div className="bg-teal-100 p-3 rounded-full">
+                    <Quote className="w-8 h-8 text-teal-600" />
+                  </div>
+                </div>
+
+                {/* Testimonial Text */}
+                <blockquote className="text-gray-700 text-lg leading-relaxed mb-6 text-center italic">
+                  "{testimonial.text}"
+                </blockquote>
+
+                {/* Rating */}
+                <div className="flex justify-center mb-6">
+                  <div className="flex gap-1">
+                    {[...Array(testimonial.rating)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 text-yellow-400 fill-current" />
+                    ))}
+                  </div>
+                </div>
+
+                {/* User Info */}
+                <div className="flex items-center justify-center gap-4">
+                  <LazyImage
+                    src={testimonial.avatar}
+                    alt={testimonial.name}
+                    className="w-16 h-16 rounded-full object-cover border-4 border-gray-100"
+                    width={64}
+                    height={64}
+                  />
+                  <div className="text-center">
+                    <p className="font-semibold text-gray-900 text-lg">
+                      {testimonial.name}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      Usuário verificado
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Statistics */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 5.2 }}
+            className="text-center"
+          >
+            <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-12 max-w-4xl mx-auto shadow-2xl">
+              <div className="flex items-center justify-center gap-4 mb-6">
+                <div className="bg-white bg-opacity-20 p-4 rounded-full">
+                  <Users className="w-12 h-12 text-white" />
+                </div>
+                <div className="text-left">
+                  <div className="text-4xl font-bold text-white mb-2">
+                    11.265.247
+                  </div>
+                  <p className="text-xl text-white opacity-90">
+                    Brasileiros já recuperaram o controle
+                  </p>
+                </div>
+              </div>
+              
+              <p className="text-2xl text-white font-semibold leading-relaxed">
+                Mais de <span className="text-yellow-300">11 milhões de brasileiros</span> já recuperaram o controle de seus processos com o Dr. Processo!
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">98.7%</div>
+                  <p className="text-white opacity-90">Satisfação dos usuários</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">132 Milhões</div>
+                  <p className="text-white opacity-90">De processos pesquisados</p>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white mb-2">100%</div>
+                  <p className="text-white opacity-90">Dados seguros e protegidos</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+
+        {/* FAQ Section */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 5.4 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-8">
+              Ainda tem dúvidas? Veja as perguntas frequentes:
+            </h2>
+          </div>
+
+          {/* FAQ Items */}
+          <div className="max-w-4xl mx-auto space-y-4">
+            {faqItems.map((item, index) => (
+              <motion.div
+                key={index}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 5.6 + (index * 0.1) }}
+                className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
+              >
+                <button
+                  onClick={() => toggleFAQ(index)}
+                  className="w-full px-8 py-6 text-left flex items-center justify-between hover:bg-gray-50 transition-colors duration-200"
+                >
+                  <h3 className="text-lg font-semibold text-gray-900 pr-4">
+                    {item.question}
+                  </h3>
+                  <div className="flex-shrink-0">
+                    {expandedFAQ === index ? (
+                      <ChevronUp className="w-6 h-6 text-teal-600" />
+                    ) : (
+                      <ChevronDown className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                </button>
+                
+                <AnimatePresence>
+                  {expandedFAQ === index && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-8 pb-6">
+                        <p className="text-gray-700 leading-relaxed">
+                          {item.answer}
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
           </div>
         </motion.div>
       </main>
 
-      {/* Footer */}
-      <footer className="py-6 text-center text-sm text-gray-600">
-        <p>Dr. Processo © Todos os direitos reservados.</p>
-      </footer>
-
-      {/* Unified Plan Modal */}
-      <AnimatePresence>
-        {isModalOpen && (
+      {/* Enhanced Footer Section */}
+      <footer className="bg-gray-900 text-white py-16 border-t border-gray-800">
+        <div className="container mx-auto px-4 max-w-6xl">
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6 }}
+            className="grid grid-cols-1 md:grid-cols-3 gap-12"
           >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl p-8 max-w-4xl w-full relative shadow-2xl max-h-[90vh] overflow-y-auto"
-            >
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="absolute right-4 top-4 text-gray-500 hover:text-gray-700 transition-colors duration-200 z-10"
-              >
-                <X size={24} />
-              </button>
-
-              <div className="text-center mb-8">
-                <div className="bg-teal-100 p-4 rounded-full w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-                  <Eye className="w-10 h-10 text-teal-600" />
-                </div>
-                
-                <h2 className="text-3xl font-bold text-gray-900 mb-4">
-                  Você está a um passo de descobrir tudo que seu advogado não te conta, diretamente no seu WhatsApp.
-                </h2>
-                
-                <p className="text-xl text-gray-600 mb-8">
-                  Desbloqueie os detalhes do seu processo e tenha controle total da sua vida jurídica.
-                </p>
+            {/* Logo and Description */}
+            <div className="space-y-6">
+              <div className="flex items-center gap-3">
+                <LazyImage 
+                  src="/Dr-Processo-Logo.webp" 
+                  alt="Dr. Processo" 
+                  className="h-12 object-contain"
+                  width={120}
+                  height={48}
+                />
+               
               </div>
+              <p className="text-gray-300 leading-relaxed">
+                Sua plataforma de confiança para acompanhar processos judiciais de forma simples, 
+                clara e sem juridiquês. Recupere o controle da sua vida jurídica.
+              </p>
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Lock className="w-4 h-4" />
+                <span>Dados protegidos por criptografia SSL</span>
+              </div>
+            </div>
 
-              {/* Single Plan Section */}
-              <div className="bg-gradient-to-r from-teal-50 to-blue-50 border-2 border-teal-300 rounded-xl p-8 mb-8">
-                <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-                  ACOMPANHAMENTO COMPLETO
-                </h3>
-                
-                <p className="text-gray-700 mb-6 leading-relaxed text-center">
-                  A solução definitiva para nunca mais se sentir no escuro. Receba tudo sobre SEU processo, em tempo real, com a clareza que só o Dr. Processo oferece.
-                </p>
-                
-                <div className="bg-white border border-teal-200 rounded-xl p-6 mb-6">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4 text-center">O que você vai receber:</h4>
-                  <div className="grid md:grid-cols-2 gap-4 text-gray-700">
-                    <div className="flex items-start gap-3">
-                      <Users className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Visão 360°:</strong> A lista completa de todos os processos em seu nome, até o que você não sabia.</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Identificação Detalhada:</strong> Número do processo, tipo de ação, de onde o processo é (Tribunal/Comarca).</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Users className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Partes Envolvidas:</strong> Quem são as partes (você, empresas, outras pessoas).</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Unlock className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Processo Desbloqueado:</strong> Acesse todos os detalhes do processo que VOCÊ escolher (Valor, Movimentações, etc.), sem nada bloqueado.</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <MessageSquare className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Resumos Exclusivos:</strong> Movimentações do seu processo traduzidas em linguagem simples (sem juridiquês), direto no seu WhatsApp.</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Bell className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Alertas Instantâneos:</strong> Notificações no seu WhatsApp a CADA nova atualização do seu processo. Seu processo andou? Vc vai saber antes do seu advogado!</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <MessageCircleQuestion className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Tire suas dúvidas:</strong> sobre seu processo com o Dr Processo pelo whatsapp. Seu advogado não quis te explicar? O Dr. Processo vai tirar todas as suas dúvidas, a qualquer hora do dia!</span>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <Award className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Suporte VIP:</strong> Atendimento direto e prioritário via WhatsApp.</span>
-                    </div>
-                    <div className="flex items-start gap-3 md:col-span-2">
-                      <Watch className="w-5 h-5 text-teal-600 mt-1 flex-shrink-0" />
-                      <span><strong>Acompanhamento completo:</strong> via whatsapp para você ficar sabendo de todos os detalhes antes mesmo do seu advogado!</span>
-                    </div>
+            {/* Links Úteis */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-white">Links Úteis</h3>
+              <nav className="space-y-3">
+                <Link 
+                  to="/termos" 
+                  className="block text-gray-300 hover:text-white transition-colors duration-200"
+                >
+                  Termos de Uso
+                </Link>
+                <Link 
+                  to="/privacidade" 
+                  className="block text-gray-300 hover:text-white transition-colors duration-200"
+                >
+                  Política de Privacidade
+                </Link>
+               
+              </nav>
+            </div>
+
+            {/* Contato */}
+            <div className="space-y-6">
+              <h3 className="text-lg font-semibold text-white">Contato</h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-teal-600 p-2 rounded-lg">
+                    <Mail className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">E-mail de Suporte</p>
+                    <a 
+                      href="mailto:contato@drprocesso.com.br" 
+                      className="text-white hover:text-teal-400 transition-colors duration-200"
+                    >
+                      contato@drprocesso.com.br
+                    </a>
                   </div>
                 </div>
-
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 mb-6">
-                  <p className="text-green-800 font-semibold text-center">
-                    🔓 A liberdade de ter controle total sobre seu processo, sem depender de ninguém. Sua paz de espírito vale cada centavo!
-                  </p>
-                </div>
-
-                <div className="text-center">
-                  <button 
-                    onClick={handleStripeCheckout}
-                    className="w-full bg-gradient-to-r from-teal-600 to-blue-600 text-white px-8 py-4 rounded-xl font-bold text-xl hover:from-teal-700 hover:to-blue-700 transition-all duration-300 shadow-lg hover:shadow-xl mb-2"
-                  >
-                    RECEBA TUDO NO SEU WHATSAPP!
-                  </button>
-                  <p className="text-sm text-gray-600">
-                    *Teste por 7 dias, cancele quando quiser.
-                  </p>
+                
+                <div className="flex items-center gap-3">
+                  <div className="bg-green-600 p-2 rounded-lg">
+                    <MessageSquare className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-400">Atendimento</p>
+                    <p className="text-white">Segunda a Sexta, 9h às 18h</p>
+                  </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+
+          {/* Divider */}
+          <div className="border-t border-gray-800 my-12"></div>
+
+          {/* Bottom Section */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex flex-col md:flex-row justify-between items-center gap-6"
+          >
+            {/* Copyright */}
+            <div className="text-center md:text-left">
+              <p className="text-gray-400">
+                © {new Date().getFullYear()} Dr. Processo. Todos os direitos reservados.
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                CNPJ: 52.470.780/0001-48 | Desenvolvido com ❤️ para o cidadão brasileiro
+              </p>
+            </div>
+
+            {/* Trust Badges */}
+            <div className="flex items-center gap-6 text-sm text-gray-400">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-500" />
+                <span>LGPD Compliant</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-blue-500" />
+                <span>SSL Seguro</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-teal-500" />
+                <span>Dados Protegidos</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </footer>
     </div>
   );
 }
