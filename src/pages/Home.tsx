@@ -619,22 +619,6 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* CTA Button */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.2 }}
-          className="flex justify-center mb-20"
-        >
-          <HashLink
-            to="/#como-funciona"
-            smooth
-            className="max-w-lg bg-teal-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-teal-700 transition-all duration-300 ease-in-out shadow-lg hover:shadow-xl text-center"
-          >
-            Como acompanho meu processo?
-          </HashLink>
-        </motion.div>
-
         {/* Pain Points Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
