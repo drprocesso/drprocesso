@@ -11,6 +11,23 @@ import { debounce } from '../utils/performance';
 
 export default function Home() {
   const navigate = useNavigate();
+  
+  // Early form state (after video)
+  const [earlyFormData, setEarlyFormData] = useState({
+    cpf: '',
+    email: '',
+    whatsapp: '',
+    consent: false
+  });
+  const [earlyFormErrors, setEarlyFormErrors] = useState({
+    cpf: false,
+    email: false,
+    whatsapp: false
+  });
+  const [isEarlyLoading, setIsEarlyLoading] = useState(false);
+  const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
+
+  // Late form state (existing form)
   const [offerFormData, setOfferFormData] = useState({
     cpf: '',
     email: '',
@@ -176,51 +193,48 @@ export default function Home() {
 
   usePassiveEventListener('scroll', handleScroll, { passive: true });
 
-  // Validation functions for offer form
-  const validateOfferWhatsapp = (whatsapp: string) => {
+  // Validation functions
+  const validateWhatsapp = (whatsapp: string) => {
     const numbers = whatsapp.replace(/\D/g, '');
     return numbers.length === 11 && !numbers.startsWith('0');
   };
 
-  const validateOfferEmail = (email: string) => {
+  const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
 
-  const validateOfferCPF = (cpf: string) => {
+  const validateCPF = (cpf: string) => {
     const numbers = cpf.replace(/\D/g, '');
     return numbers.length === 11;
   };
 
-  // Handle offer form submission
-  const handleOfferSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOfferErrorMessage(null);
+  // Generic form submission handler
+  const handleFormSubmit = async (formData: any, setLoading: any, setErrorMessage: any, resetForm: any) => {
+    setErrorMessage(null);
     
     // Validate all fields
     const errors = {
-      whatsapp: !validateOfferWhatsapp(offerFormData.whatsapp),
-      email: !validateOfferEmail(offerFormData.email),
-      cpf: !validateOfferCPF(offerFormData.cpf)
+      whatsapp: !validateWhatsapp(formData.whatsapp),
+      email: !validateEmail(formData.email),
+      cpf: !validateCPF(formData.cpf)
     };
-
-    setOfferFormErrors(errors);
 
     // If there are any errors, don't submit
     if (Object.values(errors).some(error => error)) {
       return;
     }
 
-    setIsOfferLoading(true);
+    setLoading(true);
 
     try {
       // Clean up phone and CPF
-      const cleanWhatsapp = offerFormData.whatsapp.replace(/\D/g, '');
-      const cleanCPF = offerFormData.cpf.replace(/\D/g, '');
+      const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '');
+      const cleanCPF = formData.cpf.replace(/\D/g, '');
 
       console.log('Starting form submission with data:', {
         whatsapp: cleanWhatsapp,
-        email: offerFormData.email,
+        email: formData.email,
         cpf: cleanCPF
       });
 
@@ -230,7 +244,7 @@ export default function Home() {
         .insert([{
           whatsapp: cleanWhatsapp,
           cpf: cleanCPF,
-          email: offerFormData.email,
+          email: formData.email,
           nome: 'Cliente', // Default placeholder
           status: 'pending'
         }])
@@ -251,7 +265,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           whatsapp: cleanWhatsapp,
-          email: offerFormData.email,
+          email: formData.email,
           document: cleanCPF,
           consultaId: consultaId
         })
@@ -281,28 +295,87 @@ export default function Home() {
       navigate(`/loading?consultaId=${consultaId}`);
 
       // Reset form
-      setOfferFormData({
-        cpf: '',
-        email: '',
-        whatsapp: '',
-        consent: false
-      });
-      
-      // Reset errors
-      setOfferFormErrors({
-        cpf: false,
-        email: false,
-        whatsapp: false
-      });
+      resetForm();
     } catch (error) {
       console.error('Error:', error);
-      setOfferErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
+      setErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
     } finally {
-      setIsOfferLoading(false);
+      setLoading(false);
     }
   };
 
-  // Handle form field changes for offer form
+  // Early form handlers
+  const handleEarlySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleFormSubmit(
+      earlyFormData,
+      setIsEarlyLoading,
+      setEarlyErrorMessage,
+      () => {
+        setEarlyFormData({
+          cpf: '',
+          email: '',
+          whatsapp: '',
+          consent: false
+        });
+        setEarlyFormErrors({
+          cpf: false,
+          email: false,
+          whatsapp: false
+        });
+      }
+    );
+  };
+
+  const handleEarlyWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+    setEarlyFormData({ ...earlyFormData, whatsapp: value });
+    setEarlyFormErrors({ ...earlyFormErrors, whatsapp: !validateWhatsapp(value) });
+  };
+
+  const handleEarlyEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEarlyFormData({ ...earlyFormData, email: value });
+    setEarlyFormErrors({ ...earlyFormErrors, email: !validateEmail(value) });
+  };
+
+  const handleEarlyCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, '');
+    value = value.slice(0, 11);
+    if (value.length > 0) {
+      value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    setEarlyFormData({ ...earlyFormData, cpf: value });
+    setEarlyFormErrors({ ...earlyFormErrors, cpf: !validateCPF(value) });
+  };
+
+  // Late form handlers (existing)
+  const handleOfferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await handleFormSubmit(
+      offerFormData,
+      setIsOfferLoading,
+      setOfferErrorMessage,
+      () => {
+        setOfferFormData({
+          cpf: '',
+          email: '',
+          whatsapp: '',
+          consent: false
+        });
+        setOfferFormErrors({
+          cpf: false,
+          email: false,
+          whatsapp: false
+        });
+      }
+    );
+  };
+
   const handleOfferWhatsappChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/\D/g, '');
     value = value.slice(0, 11);
@@ -310,13 +383,13 @@ export default function Home() {
       value = value.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
     }
     setOfferFormData({ ...offerFormData, whatsapp: value });
-    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateOfferWhatsapp(value) });
+    setOfferFormErrors({ ...offerFormErrors, whatsapp: !validateWhatsapp(value) });
   };
 
   const handleOfferEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setOfferFormData({ ...offerFormData, email: value });
-    setOfferFormErrors({ ...offerFormErrors, email: !validateOfferEmail(value) });
+    setOfferFormErrors({ ...offerFormErrors, email: !validateEmail(value) });
   };
 
   const handleOfferCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,7 +399,7 @@ export default function Home() {
       value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
     setOfferFormData({ ...offerFormData, cpf: value });
-    setOfferFormErrors({ ...offerFormErrors, cpf: !validateOfferCPF(value) });
+    setOfferFormErrors({ ...offerFormErrors, cpf: !validateCPF(value) });
   };
 
   const toggleFAQ = (index: number) => {
@@ -385,11 +458,184 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* CTA Button */}
+        {/* Early Form Section - Right after video */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
+          className="mb-20"
+        >
+          {/* Section Title */}
+          <div className="text-center mb-16">
+            {/* Main Headline */}
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
+              Seu advogado sumiu? Nós te respondemos na HORA!
+            </h2>
+            
+            {/* Subheadline */}
+            <p className="text-xl text-gray-600 leading-relaxed max-w-3xl mx-auto">
+              Milhões de brasileiros se sentem no escuro. Você está a um passo de ter todas as informações na palma da sua mão.
+            </p>
+          </div>
+
+          {/* Form Container */}
+          <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 max-w-lg mx-auto">
+            <form onSubmit={handleEarlySubmit} className="space-y-6">
+              {earlyErrorMessage && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {earlyErrorMessage}
+                </div>
+              )}
+
+              {/* WhatsApp Field */}
+              <div>
+                <label htmlFor="early-whatsapp" className="block text-sm font-semibold text-gray-700 mb-2">
+                  WhatsApp com DDD*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Phone className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="tel"
+                    id="early-whatsapp"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.whatsapp ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.whatsapp}
+                    onChange={handleEarlyWhatsappChange}
+                    placeholder="(99) 99999-9999"
+                  />
+                </div>
+                {earlyFormErrors.whatsapp && (
+                  <p className="mt-1 text-sm text-red-500">Digite um número de WhatsApp válido com DDD (11 dígitos)</p>
+                )}
+              </div>
+
+              {/* Email Field */}
+              <div>
+                <label htmlFor="early-email" className="block text-sm font-semibold text-gray-700 mb-2">
+                  E-mail*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="email"
+                    id="early-email"
+                    required
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.email ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.email}
+                    onChange={handleEarlyEmailChange}
+                    placeholder="seumail@exemplo.com"
+                  />
+                </div>
+                {earlyFormErrors.email && (
+                  <p className="mt-1 text-sm text-red-500">Digite um e-mail válido</p>
+                )}
+              </div>
+
+              {/* CPF Field */}
+              <div>
+                <label htmlFor="early-cpf" className="block text-sm font-semibold text-gray-700 mb-2">
+                  CPF*
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="early-cpf"
+                    required
+                    maxLength={14}
+                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all ${
+                      earlyFormErrors.cpf ? 'border-red-500' : 'border-gray-200'
+                    }`}
+                    value={earlyFormData.cpf}
+                    onChange={handleEarlyCPFChange}
+                    placeholder="000.000.000-00"
+                  />
+                </div>
+                {earlyFormErrors.cpf && (
+                  <p className="mt-1 text-sm text-red-500">Digite um CPF válido (11 dígitos)</p>
+                )}
+              </div>
+
+              {/* Consent Checkbox */}
+              <div className="flex items-start space-x-3">
+                <input
+                  type="checkbox"
+                  id="early-consent"
+                  required
+                  className="mt-1.5 h-5 w-5 text-teal-600 focus:ring-2 focus:ring-teal-500 border-2 border-gray-300 rounded transition-all duration-200 ease-in-out"
+                  checked={earlyFormData.consent}
+                  onChange={(e) => setEarlyFormData({...earlyFormData, consent: e.target.checked})}
+                />
+                <label htmlFor="early-consent" className="text-sm text-gray-700 leading-relaxed">
+                  Autorizo o uso dos meus dados para consulta processual e comunicação do Dr. Processo.*
+                </label>
+              </div>
+
+              {/* Submit Button */}
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isEarlyLoading}
+                className="w-full bg-gradient-to-r from-teal-600 to-teal-700 text-white py-4 rounded-xl font-bold text-lg hover:from-teal-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+              >
+                {isEarlyLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  'Consultar Meu Processo!'
+                )}
+              </motion.button>
+            </form>
+          </div>
+
+          {/* Scarcity/Urgency Text */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.8 }}
+            className="text-center mt-8"
+          >
+            <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
+              Não deixe que a demora e a falta de informação acabem com seus direitos! Consulte agora e evite surpresas extraordinárias.
+            </p>
+          </motion.div>
+
+          {/* Reinforcement/Trust Texts */}
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.6, delay: 1.0 }}
+            className="text-center mt-4 text-gray-600 text-sm space-y-1"
+          >
+            <p className="flex items-center justify-center gap-2">
+              <CheckCircle className="w-4 h-4 text-green-600" />
+              Consulta em tempo real. Seus dados seguros e protegidos.
+            </p>
+            <p className="flex items-center justify-center gap-2">
+              <Shield className="w-4 h-4 text-blue-600" />
+              Serviço exclusivo para o cidadão, sem juridiquês.
+            </p>
+          </motion.div>
+        </motion.div>
+
+        {/* CTA Button */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
           className="flex justify-center mb-20"
         >
           <HashLink
@@ -405,7 +651,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
+          transition={{ duration: 0.6, delay: 1.4 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -424,7 +670,7 @@ export default function Home() {
                   key={index}
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.0 + (index * 0.1) }}
+                  transition={{ duration: 0.6, delay: 1.6 + (index * 0.1) }}
                   className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
                 >
                   <div className="flex items-start gap-4">
@@ -449,7 +695,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 1.5 }}
+            transition={{ duration: 0.6, delay: 2.1 }}
             className="text-center mt-12"
           >
             <div className="bg-teal-50 border border-teal-200 rounded-xl p-8 max-w-2xl mx-auto">
@@ -465,7 +711,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.7 }}
+          transition={{ duration: 0.6, delay: 2.3 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -483,7 +729,7 @@ export default function Home() {
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 1.9 }}
+                  transition={{ duration: 0.8, delay: 2.5 }}
                   className="text-center"
                 >
                   {/* Image with Question Mark */}
@@ -507,7 +753,7 @@ export default function Home() {
                 <motion.div
                   initial={{ x: 20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 2.1 }}
+                  transition={{ duration: 0.6, delay: 2.7 }}
                 >
                   <p className="text-lg text-gray-700 leading-relaxed mb-6">
                     <span className="font-semibold text-gray-900">Não é a justiça, nem a complexidade da lei.</span> O que rouba sua tranquilidade é o advogado que:
@@ -547,7 +793,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 2.3 }}
+          transition={{ duration: 0.6, delay: 2.9 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -566,7 +812,7 @@ export default function Home() {
                   key={index}
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 2.5 + (index * 0.1) }}
+                  transition={{ duration: 0.6, delay: 3.1 + (index * 0.1) }}
                   className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
                 >
                   <div className="p-8">
@@ -597,7 +843,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 3.0 }}
+            transition={{ duration: 0.6, delay: 3.6 }}
             className="text-center mt-16"
           >
             <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl">
@@ -620,7 +866,7 @@ export default function Home() {
           id="como-funciona"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 3.2 }}
+          transition={{ duration: 0.6, delay: 3.8 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -639,7 +885,7 @@ export default function Home() {
                   key={index}
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 3.4 + (index * 0.2) }}
+                  transition={{ duration: 0.6, delay: 4.0 + (index * 0.2) }}
                 >
                   <div className="flex flex-col items-center gap-8">
                     {/* Step Number and Icon */}
@@ -677,7 +923,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 4.0 }}
+            transition={{ duration: 0.6, delay: 4.6 }}
             className="text-center mt-16"
           >
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 max-w-4xl mx-auto border border-gray-200">
@@ -706,7 +952,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 4.2 }}
+          transition={{ duration: 0.6, delay: 4.8 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -723,7 +969,7 @@ export default function Home() {
                 key={index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 4.4 + (index * 0.1) }}
+                transition={{ duration: 0.6, delay: 5.0 + (index * 0.1) }}
                 className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
               >
                 {/* Quote Icon */}
@@ -773,7 +1019,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 4.8 }}
+            transition={{ duration: 0.6, delay: 5.4 }}
             className="text-center"
           >
             <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-12 max-w-4xl mx-auto shadow-2xl">
@@ -813,20 +1059,18 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* New Section 7: Desvende o Andamento do Seu Processo Agora! */}
+        {/* Late Form Section - Original position */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 5.0 }}
+          transition={{ duration: 0.6, delay: 5.6 }}
           className="mb-20"
         >
           {/* Section Title */}
           <div className="text-center mb-16">
-                       
             {/* Main Headline */}
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-6 leading-tight">
               Seu advogado sumiu? Nós te respondemos na HORA!
-              
             </h2>
             
             {/* Subheadline */}
@@ -962,7 +1206,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.2 }}
+            transition={{ duration: 0.6, delay: 5.8 }}
             className="text-center mt-8"
           >
             <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
@@ -974,7 +1218,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.4 }}
+            transition={{ duration: 0.6, delay: 6.0 }}
             className="text-center mt-4 text-gray-600 text-sm space-y-1"
           >
             <p className="flex items-center justify-center gap-2">
@@ -992,7 +1236,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 5.6 }}
+          transition={{ duration: 0.6, delay: 6.2 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -1009,7 +1253,7 @@ export default function Home() {
                 key={index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 5.8 + (index * 0.1) }}
+                transition={{ duration: 0.6, delay: 6.4 + (index * 0.1) }}
                 className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
               >
                 <button
