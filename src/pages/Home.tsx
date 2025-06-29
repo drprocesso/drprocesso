@@ -27,7 +27,7 @@ export default function Home() {
   const [isEarlyLoading, setIsEarlyLoading] = useState(false);
   const [earlyErrorMessage, setEarlyErrorMessage] = useState<string | null>(null);
 
-  // Late form state (existing form)
+  // Late form state (end of page)
   const [offerFormData, setOfferFormData] = useState({
     cpf: '',
     email: '',
@@ -210,7 +210,15 @@ export default function Home() {
   };
 
   // Generic form submission handler
-  const handleFormSubmit = async (formData: any, setLoading: any, setErrorMessage: any, resetForm: any) => {
+  const handleFormSubmit = async (
+    e: React.FormEvent,
+    formData: typeof earlyFormData,
+    setLoading: (loading: boolean) => void,
+    setErrorMessage: (message: string | null) => void,
+    setFormData: (data: typeof earlyFormData) => void,
+    setFormErrors: (errors: typeof earlyFormErrors) => void
+  ) => {
+    e.preventDefault();
     setErrorMessage(null);
     
     // Validate all fields
@@ -219,6 +227,8 @@ export default function Home() {
       email: !validateEmail(formData.email),
       cpf: !validateCPF(formData.cpf)
     };
+
+    setFormErrors(errors);
 
     // If there are any errors, don't submit
     if (Object.values(errors).some(error => error)) {
@@ -295,7 +305,19 @@ export default function Home() {
       navigate(`/loading?consultaId=${consultaId}`);
 
       // Reset form
-      resetForm();
+      setFormData({
+        cpf: '',
+        email: '',
+        whatsapp: '',
+        consent: false
+      });
+      
+      // Reset errors
+      setFormErrors({
+        cpf: false,
+        email: false,
+        whatsapp: false
+      });
     } catch (error) {
       console.error('Error:', error);
       setErrorMessage('Ocorreu um erro ao processar sua solicitação. Por favor, tente novamente.');
@@ -305,25 +327,14 @@ export default function Home() {
   };
 
   // Early form handlers
-  const handleEarlySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await handleFormSubmit(
+  const handleEarlySubmit = (e: React.FormEvent) => {
+    return handleFormSubmit(
+      e,
       earlyFormData,
       setIsEarlyLoading,
       setEarlyErrorMessage,
-      () => {
-        setEarlyFormData({
-          cpf: '',
-          email: '',
-          whatsapp: '',
-          consent: false
-        });
-        setEarlyFormErrors({
-          cpf: false,
-          email: false,
-          whatsapp: false
-        });
-      }
+      setEarlyFormData,
+      setEarlyFormErrors
     );
   };
 
@@ -353,26 +364,15 @@ export default function Home() {
     setEarlyFormErrors({ ...earlyFormErrors, cpf: !validateCPF(value) });
   };
 
-  // Late form handlers (existing)
-  const handleOfferSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await handleFormSubmit(
+  // Late form handlers
+  const handleOfferSubmit = (e: React.FormEvent) => {
+    return handleFormSubmit(
+      e,
       offerFormData,
       setIsOfferLoading,
       setOfferErrorMessage,
-      () => {
-        setOfferFormData({
-          cpf: '',
-          email: '',
-          whatsapp: '',
-          consent: false
-        });
-        setOfferFormErrors({
-          cpf: false,
-          email: false,
-          whatsapp: false
-        });
-      }
+      setOfferFormData,
+      setOfferFormErrors
     );
   };
 
@@ -407,7 +407,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col relative">
       <main className="flex-1 container mx-auto px-4 py-12 max-w-4xl">
         {/* Logo */}
         <motion.div 
@@ -458,7 +458,7 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Early Form Section - Right after video */}
+        {/* Early Form Section - After Video */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -631,27 +631,11 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* CTA Button */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.2 }}
-          className="flex justify-center mb-20"
-        >
-          <HashLink
-            to="/#como-funciona"
-            smooth
-            className="max-w-lg bg-teal-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-teal-700 transition-all duration-300 ease-in-out shadow-lg hover:shadow-xl text-center"
-          >
-            Como acompanho meu processo?
-          </HashLink>
-        </motion.div>
-
         {/* Pain Points Section */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 1.4 }}
+          transition={{ duration: 0.6, delay: 1.2 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -670,7 +654,7 @@ export default function Home() {
                   key={index}
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 1.6 + (index * 0.1) }}
+                  transition={{ duration: 0.6, delay: 1.4 + (index * 0.1) }}
                   className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-all duration-300"
                 >
                   <div className="flex items-start gap-4">
@@ -695,7 +679,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 2.1 }}
+            transition={{ duration: 0.6, delay: 1.9 }}
             className="text-center mt-12"
           >
             <div className="bg-teal-50 border border-teal-200 rounded-xl p-8 max-w-2xl mx-auto">
@@ -711,7 +695,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 2.3 }}
+          transition={{ duration: 0.6, delay: 2.1 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -729,7 +713,7 @@ export default function Home() {
                 <motion.div
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  transition={{ duration: 0.8, delay: 2.5 }}
+                  transition={{ duration: 0.8, delay: 2.3 }}
                   className="text-center"
                 >
                   {/* Image with Question Mark */}
@@ -753,7 +737,7 @@ export default function Home() {
                 <motion.div
                   initial={{ x: 20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 2.7 }}
+                  transition={{ duration: 0.6, delay: 2.5 }}
                 >
                   <p className="text-lg text-gray-700 leading-relaxed mb-6">
                     <span className="font-semibold text-gray-900">Não é a justiça, nem a complexidade da lei.</span> O que rouba sua tranquilidade é o advogado que:
@@ -793,7 +777,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 2.9 }}
+          transition={{ duration: 0.6, delay: 2.7 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -812,7 +796,7 @@ export default function Home() {
                   key={index}
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 3.1 + (index * 0.1) }}
+                  transition={{ duration: 0.6, delay: 2.9 + (index * 0.1) }}
                   className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden hover:shadow-2xl transition-all duration-300"
                 >
                   <div className="p-8">
@@ -843,7 +827,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 3.6 }}
+            transition={{ duration: 0.6, delay: 3.4 }}
             className="text-center mt-16"
           >
             <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-8 max-w-3xl mx-auto shadow-2xl">
@@ -866,7 +850,7 @@ export default function Home() {
           id="como-funciona"
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 3.8 }}
+          transition={{ duration: 0.6, delay: 3.6 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -885,7 +869,7 @@ export default function Home() {
                   key={index}
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 4.0 + (index * 0.2) }}
+                  transition={{ duration: 0.6, delay: 3.8 + (index * 0.2) }}
                 >
                   <div className="flex flex-col items-center gap-8">
                     {/* Step Number and Icon */}
@@ -923,7 +907,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 4.6 }}
+            transition={{ duration: 0.6, delay: 4.4 }}
             className="text-center mt-16"
           >
             <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-8 max-w-4xl mx-auto border border-gray-200">
@@ -952,7 +936,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 4.8 }}
+          transition={{ duration: 0.6, delay: 4.6 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -969,7 +953,7 @@ export default function Home() {
                 key={index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 5.0 + (index * 0.1) }}
+                transition={{ duration: 0.6, delay: 4.8 + (index * 0.1) }}
                 className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 hover:shadow-2xl transition-all duration-300"
               >
                 {/* Quote Icon */}
@@ -1019,7 +1003,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.4 }}
+            transition={{ duration: 0.6, delay: 5.2 }}
             className="text-center"
           >
             <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl p-12 max-w-4xl mx-auto shadow-2xl">
@@ -1059,11 +1043,11 @@ export default function Home() {
           </motion.div>
         </motion.div>
 
-        {/* Late Form Section - Original position */}
+        {/* Late Form Section - End of Page */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 5.6 }}
+          transition={{ duration: 0.6, delay: 5.4 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -1206,7 +1190,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 5.8 }}
+            transition={{ duration: 0.6, delay: 5.6 }}
             className="text-center mt-8"
           >
             <p className="text-lg text-red-600 font-semibold max-w-2xl mx-auto">
@@ -1218,7 +1202,7 @@ export default function Home() {
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            transition={{ duration: 0.6, delay: 6.0 }}
+            transition={{ duration: 0.6, delay: 5.8 }}
             className="text-center mt-4 text-gray-600 text-sm space-y-1"
           >
             <p className="flex items-center justify-center gap-2">
@@ -1236,7 +1220,7 @@ export default function Home() {
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.6, delay: 6.2 }}
+          transition={{ duration: 0.6, delay: 6.0 }}
           className="mb-20"
         >
           {/* Section Title */}
@@ -1253,7 +1237,7 @@ export default function Home() {
                 key={index}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.6, delay: 6.4 + (index * 0.1) }}
+                transition={{ duration: 0.6, delay: 6.2 + (index * 0.1) }}
                 className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
               >
                 <button
@@ -1308,7 +1292,7 @@ export default function Home() {
             <div className="space-y-6">
               <div className="flex items-center gap-3">
                 <LazyImage 
-                  src="/Dr-Processo-Logo.webp" 
+                  src="/Cópia-de-dr_processo_logo.webp" 
                   alt="Dr. Processo" 
                   className="h-12 object-contain"
                   width={120}
